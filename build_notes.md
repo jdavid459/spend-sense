@@ -204,3 +204,13 @@ Initial SpendSense scaffold
 ```
 
 Attempted to push to `https://github.com/jdavid459/spend-sense.git`, but GitHub returned `Repository not found`, which means the remote repo has not been created yet or the local machine is not authenticated for it.
+
+## GitHub repo created and pushed
+
+Created the public GitHub repository:
+
+```text
+https://github.com/jdavid459/spend-sense
+```
+
+Pushed local `main` to `origin/main`. Private spend data remains excluded by `.gitignore`; only the synthetic demo CSV is committed.
