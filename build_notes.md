@@ -460,3 +460,251 @@ cd dbt && dbt build --profiles-dir . && cd ..
 ```
 
 Trial keys are documented as limited to about 1,000 API calls/month and 20 chat requests/min for relevant chat models. Since enrichment is cached, repeated runs only process uncached descriptions.
+
+## Planned next step: metric design / analytics engineering layer
+
+The next major development slice should showcase analytics engineering and metric design, not just AI enrichment or dashboarding.
+
+Current app already has:
+
+- Chase CSV ingestion into DuckDB
+- dbt staging/intermediate/mart models
+- deterministic merchant seed rules
+- Cohere merchant/category enrichment cache
+- provenance fields (`merchant_source`, `category_source`, `ai_confidence`, `ai_reasoning`)
+- Dash dashboard with Overview, Transactions, Anomalies, Recurring, Merchant Cleanup, and AI Summary tabs
+
+Recommended next work is to add a proper metrics layer in dbt and surface it in the frontend.
+
+### Why this matters
+
+This project should demonstrate:
+
+- clear metric definitions
+- correct denominator choices
+- exclusion of payments/credits from spend metrics
+- modeled marts that can be reused outside the dashboard
+- data quality / AI coverage observability
+- concentration, volatility, run-rate, anomaly, and recurring-spend metrics
+
+This is especially valuable for interviews because it shows analytics engineering judgment, not just chart-building.
+
+### Proposed dbt marts
+
+#### `mart_spend_kpis`
+
+One-row summary table for global spend KPIs.
+
+Suggested fields:
+
+```text
+total_spend
+credit_amount
+transaction_count
+debit_transaction_count
+avg_transaction_amount
+median_transaction_amount
+top_category
+top_category_spend
+top_category_spend_share
+top_merchant
+top_merchant_spend
+top_merchant_spend_share
+top_5_merchant_spend
+top_5_merchant_spend_share
+estimated_monthly_recurring_spend
+recurring_spend_share
+anomaly_count
+anomaly_spend
+anomaly_transaction_rate
+anomaly_spend_share
+fallback_transaction_count
+fallback_spend
+fallback_transaction_share
+fallback_spend_share
+cohere_transaction_count
+cohere_spend
+cohere_transaction_share
+cohere_spend_share
+seed_rule_transaction_count
+seed_rule_spend
+seed_rule_transaction_share
+seed_rule_spend_share
+```
+
+Important definitions:
+
+```text
+total_spend = sum(amount_abs) where is_debit = true
+credit_amount = sum(amount_abs) where is_credit = true
+*_spend_share = numerator spend / total_spend
+*_transaction_share = numerator transaction count / transaction_count
+```
+
+Payments and credits must not be included in spend denominators.
+
+#### `mart_monthly_kpis`
+
+One row per month.
+
+Suggested fields:
+
+```text
+month
+total_spend
+transaction_count
+avg_transaction_amount
+median_transaction_amount
+top_category
+top_category_spend
+top_merchant
+top_merchant_spend
+recurring_spend
+recurring_spend_share
+anomaly_count
+anomaly_spend
+mom_spend_change_amount
+mom_spend_change_pct
+```
+
+Guardrail for percent changes:
+
+```text
+Only expose/use mom_spend_change_pct when previous_month_spend >= 50.
+```
+
+This prevents misleading percentage changes from tiny baselines.
+
+#### `mart_category_metrics`
+
+One row per category.
+
+Suggested fields:
+
+```text
+final_category
+total_spend
+spend_share
+monthly_avg_spend
+monthly_spend_stddev
+monthly_spend_volatility
+transaction_count
+avg_transaction_amount
+largest_transaction_amount
+top_merchant
+top_merchant_spend
+latest_month_spend
+prior_month_spend
+latest_mom_change_amount
+latest_mom_change_pct
+```
+
+Volatility definition:
+
+```text
+monthly_spend_volatility = monthly_spend_stddev / monthly_avg_spend
+```
+
+#### `mart_data_quality`
+
+One row per merchant/category source combination or per merchant_source.
+
+Suggested fields:
+
+```text
+merchant_source
+category_source
+transaction_count
+total_spend
+transaction_share
+spend_share
+unique_raw_descriptions
+unique_normalized_merchants
+```
+
+This is important because the app now has AI provenance. We should be able to answer:
+
+```text
+How much spend was seed-rule mapped?
+How much was Cohere-enriched?
+How much still falls back to raw Chase descriptions?
+```
+
+This is a strong enterprise AI governance story.
+
+### Suggested frontend addition
+
+Add a new tab:
+
+```text
+Metrics
+```
+
+The tab should show:
+
+- metric cards for concentration / volatility / data quality
+- definitions or small explanatory text for each metric
+- data quality coverage chart by merchant_source/category_source
+- category metric table
+- monthly KPI trend table/chart
+
+Suggested cards:
+
+```text
+Top Category Share
+Top Merchant Share
+Top 5 Merchant Share
+Recurring Spend Share
+Fallback Spend Share
+Cohere-Enriched Spend Share
+Anomaly Spend Share
+Monthly Spend Volatility
+```
+
+Example metric explanation copy:
+
+```text
+Fallback Spend Share = spend from debit transactions where merchant_source = fallback divided by total debit spend.
+```
+
+### Interview framing
+
+For Cohere:
+
+> I track AI coverage and fallback rates as first-class data quality metrics. Cohere enrichments are cached and auditable, deterministic seed rules take priority, and downstream marts preserve provenance.
+
+For Netflix / analytics engineering:
+
+> Transactions are modeled like events. Merchants and categories are dimensions. The metrics layer defines spend, concentration, volatility, anomaly rates, and data quality coverage with explicit denominator choices and dbt tests.
+
+### Recommended implementation order after session restart
+
+1. Add `mart_spend_kpis.sql`.
+2. Add `mart_monthly_kpis.sql`.
+3. Add `mart_category_metrics.sql`.
+4. Add `mart_data_quality.sql`.
+5. Add schema.yml docs/tests for these marts.
+6. Run `dbt build --profiles-dir .`.
+7. Update Dash app to load the new marts.
+8. Add a `Metrics` tab.
+9. Surface metric definitions in the UI.
+10. Update README and build notes.
+
+### Current Cohere enrichment status / reminder
+
+Cohere enrichment is currently one-request-per-merchant-description. It caches successful results in `ai.merchant_enrichment_cache`, so reruns skip already enriched descriptions.
+
+Current script has:
+
+- `MERCHANT_ENRICHMENT_LIMIT`
+- `COHERE_REQUEST_SLEEP_SECONDS` defaulting to 3.1 seconds
+- retry handling for HTTP 429
+- no batching yet
+
+Future improvement:
+
+```text
+MERCHANT_ENRICHMENT_BATCH_SIZE=10 or 25
+```
+
+Potentially 50 per batch may work, but start with 10–25 for easier JSON parsing/retry behavior. A batch implementation should still cache each merchant row independently and fall back to smaller batches or individual retries if a batch fails.
