@@ -95,16 +95,26 @@ def filter_transactions(
     return df
 
 
-def metric_card(title: str, value: str, subtitle: str = "", color: str = ACCENT) -> dbc.Card:
+def metric_card(
+    title: str,
+    value: str,
+    subtitle: str = "",
+    color: str = ACCENT,
+    value_size: str = "32px",
+) -> dbc.Card:
     return dbc.Card(
         dbc.CardBody(
             [
                 html.Div(title, className="text-uppercase small fw-semibold", style={"color": MUTED}),
-                html.Div(value, className="display-6 fw-bold", style={"color": color}),
-                html.Div(subtitle, className="small", style={"color": MUTED}),
+                html.Div(
+                    value,
+                    className="fw-bold lh-sm",
+                    style={"color": color, "fontSize": value_size, "wordBreak": "break-word"},
+                ),
+                html.Div(subtitle, className="small mt-1", style={"color": MUTED}),
             ]
         ),
-        style=CARD_STYLE,
+        style=CARD_STYLE | {"height": "100%"},
     )
 
 
@@ -308,6 +318,11 @@ def render_kpis(start_date, end_date, categories, merchants, view_mode):
         top_category = category_spend.index[0]
         top_category_spend = category_spend.iloc[0]
     recurring_total = debits.loc[debits["is_recurring"], "amount_abs"].sum() if not debits.empty else 0
+    date_label = "—"
+    if start_date and end_date:
+        date_label = (
+            f"{pd.to_datetime(start_date).strftime('%b %-d, %Y')} – {pd.to_datetime(end_date).strftime('%b %-d, %Y')}"
+        )
 
     return dbc.Row(
         [
@@ -324,7 +339,7 @@ def render_kpis(start_date, end_date, categories, merchants, view_mode):
                 ),
                 lg=3,
             ),
-            dbc.Col(metric_card("Top Category", top_category, money(top_category_spend)), lg=3),
+            dbc.Col(metric_card("Top Category", top_category, money(top_category_spend), value_size="28px"), lg=3),
             dbc.Col(
                 metric_card(
                     "Anomalies",
@@ -348,7 +363,7 @@ def render_kpis(start_date, end_date, categories, merchants, view_mode):
                 className="mt-3",
             ),
             dbc.Col(
-                metric_card("Date Window", f"{start_date or '—'} → {end_date or '—'}", "Active filter"),
+                metric_card("Date Window", date_label, "Active filter", value_size="20px"),
                 lg=3,
                 className="mt-3",
             ),
@@ -388,6 +403,13 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
         )
         daily = debits.groupby("transaction_date", as_index=False)["amount_abs"].sum()
 
+        labels = {
+            "amount_abs": "Spend",
+            "final_category": "Category",
+            "normalized_merchant": "Merchant",
+            "transaction_date": "Date",
+            "month": "Month",
+        }
         fig_month = px.line(
             monthly_filtered,
             x="month",
@@ -395,12 +417,14 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
             color="final_category",
             markers=True,
             title="Monthly spend by category",
+            labels=labels,
         )
         fig_cat = px.bar(
             category_spend.sort_values("amount_abs", ascending=False),
             x="final_category",
             y="amount_abs",
             title="Spend by category",
+            labels=labels,
         )
         fig_merchants = px.bar(
             merchant_spend.sort_values("amount_abs"),
@@ -408,10 +432,16 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
             y="normalized_merchant",
             orientation="h",
             title="Top merchants by spend",
+            labels=labels,
         )
-        fig_daily = px.line(daily, x="transaction_date", y="amount_abs", title="Daily spend")
+        fig_daily = px.line(daily, x="transaction_date", y="amount_abs", title="Daily spend", labels=labels)
         for fig in [fig_month, fig_cat, fig_merchants, fig_daily]:
             fig.update_layout(template="plotly_white", margin=dict(l=30, r=20, t=60, b=30))
+            fig.update_yaxes(tickprefix="$", separatethousands=True)
+        fig_cat.update_xaxes(tickangle=-45)
+        fig_month.update_yaxes(tickprefix="$", separatethousands=True)
+        fig_merchants.update_xaxes(tickprefix="$", separatethousands=True)
+        fig_merchants.update_yaxes(tickprefix="")
 
         return dbc.Row(
             [

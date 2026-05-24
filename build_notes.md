@@ -238,3 +238,13 @@ PORT=8051 python app/app.py
 ```
 
 Default remains `8050`.
+
+## Dashboard visual cleanup after screenshot review
+
+After reviewing the updated dashboard screenshot, made quick visual refinements:
+
+- Reduced KPI value font sizes so long category/date values do not dominate the cards.
+- Formatted the Date Window card as a compact human-readable range.
+- Added clearer Plotly axis/legend labels instead of raw column names like `amount_abs` and `final_category`.
+- Added currency formatting to spend axes.
+- Rotated category labels to improve readability.
