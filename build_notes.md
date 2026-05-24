@@ -248,3 +248,77 @@ After reviewing the updated dashboard screenshot, made quick visual refinements:
 - Added clearer Plotly axis/legend labels instead of raw column names like `amount_abs` and `final_category`.
 - Added currency formatting to spend axes.
 - Rotated category labels to improve readability.
+
+## Current state / handoff notes
+
+The project is now committed and pushed to GitHub:
+
+```text
+https://github.com/jdavid459/spend-sense
+```
+
+Current working app state:
+
+- Local `.env` is set to `SPEND_DATA_MODE=private` and is ignored by git.
+- `.env.example` remains safe for public/demo use with `SPEND_DATA_MODE=demo`.
+- Private Chase CSVs live in `data/private/` and are ignored by git.
+- Private mode uses the explicitly configured `PRIVATE_CHASE_CSV` if it exists; otherwise it auto-detects the most recently modified `.csv`/`.CSV` file in `data/private/`.
+- Demo mode uses `data/demo/chase_transactions_demo.csv`, which is synthetic and committed.
+- dbt now writes clean schemas named `staging`, `intermediate`, `marts`, and `seeds` via `dbt/macros/generate_schema_name.sql`.
+- The Dash app reads from the `marts` schema.
+- The app supports `PORT`, e.g. `PORT=8051 python app/app.py`.
+
+Validated commands used during development:
+
+```bash
+source .venv/bin/activate
+python scripts/generate_demo_data.py
+python scripts/ingest_chase_csv.py
+cd dbt
+ dbt seed --profiles-dir .
+ dbt run --profiles-dir .
+ dbt test --profiles-dir .
+cd ..
+python app/app.py
+```
+
+For private/local data, ensure `.env` contains:
+
+```text
+SPEND_DATA_MODE=private
+```
+
+For demo/deployable data, use:
+
+```text
+SPEND_DATA_MODE=demo
+```
+
+Current dashboard features:
+
+- Global date/category/merchant/view filters.
+- KPI cards for spend, credits, top category, anomalies, transaction count, average transaction, recurring spend, and date window.
+- Overview charts for monthly spend, category spend, top merchants, and daily spend.
+- Transactions tab with sortable/filterable Dash DataTable.
+- Anomalies tab with explanation cards and details table.
+- Recurring tab with recurring spend chart/table.
+- Merchant Cleanup tab for reviewing normalized merchants and raw description examples.
+- AI Summary tab calls Cohere only if `COHERE_API_KEY` is configured.
+
+Important caveats:
+
+- `dbt/seeds/merchant_rules.csv` is still a generic starter seed, not yet fully derived from the user's actual private data.
+- Merchant normalization is currently deterministic/rule-based. Cohere enrichment has not yet been implemented beyond the summary helper.
+- Anomaly detection is simple z-score logic in dbt models; it is explainable but not yet sophisticated.
+- Recurring detection is heuristic and should be improved after merchant normalization improves.
+- The UI is acceptable for now but not final; future work should focus on data/product depth before visual polish.
+
+Recommended next development priorities:
+
+1. Use the real/private transaction data to improve merchant normalization rules.
+2. Add a dbt model/mart for unmapped or poorly normalized merchants.
+3. Add Cohere-powered merchant/category enrichment with a local DuckDB cache table.
+4. Add semantic search over transactions/merchants using Cohere embeddings.
+5. Improve anomaly detection and duplicate charge detection.
+6. Generate a stronger synthetic demo dataset after learning from the real data patterns.
+7. Add deployment support using demo data only.
