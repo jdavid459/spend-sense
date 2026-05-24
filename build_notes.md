@@ -194,3 +194,13 @@ Before creating the first git commit, verified that private/local artifacts are 
 - dbt's local `.user.yml` is ignored.
 
 The repo is safe to publish with the synthetic demo CSV only.
+
+## Initial git commit
+
+Created the initial local git commit:
+
+```text
+Initial SpendSense scaffold
+```
+
+Attempted to push to `https://github.com/jdavid459/spend-sense.git`, but GitHub returned `Repository not found`, which means the remote repo has not been created yet or the local machine is not authenticated for it.
