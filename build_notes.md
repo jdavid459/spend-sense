@@ -777,3 +777,99 @@ and features.final_category = recurring.final_category
 ```
 
 This preserves one row per transaction and should fix the failing unique test.
+
+## Modeling improvement note: merchant identity vs transaction category
+
+Current model caveat:
+
+The current pipeline can allow a single `normalized_merchant` to appear with multiple `final_category` values. This is realistic in some cases, but the current model makes the semantics slightly confusing.
+
+Examples:
+
+```text
+Amazon -> Shopping
+Amazon -> Groceries
+Costco -> Shopping
+Costco -> Groceries
+```
+
+This happens because merchant identity and transaction category are different concepts:
+
+```text
+merchant identity = who was paid
+transaction category = what kind of spend this transaction represents
+```
+
+The recent fix to `fct_transactions` joined recurring data on both `normalized_merchant` and `final_category` to avoid duplicate transaction rows. That fix is technically correct for the current grain, but it reveals a modeling improvement opportunity.
+
+Recommended future refactor:
+
+### `dim_merchant`
+
+One row per merchant entity.
+
+Suggested fields:
+
+```text
+merchant_id
+normalized_merchant
+merchant_group
+merchant_source
+default_category
+first_seen
+last_seen
+transaction_count
+total_spend
+```
+
+### `fct_transactions`
+
+One row per transaction.
+
+Suggested fields:
+
+```text
+transaction_id
+transaction_date
+merchant_id
+transaction_category
+raw_category
+amount
+is_debit
+is_credit
+is_anomaly
+```
+
+### `mart_recurring_charges`
+
+One row per recurring pattern, not necessarily one row per merchant.
+
+Suggested grain:
+
+```text
+merchant_id + transaction_category + cadence/amount pattern
+```
+
+Suggested fields:
+
+```text
+recurring_charge_id
+merchant_id
+transaction_category
+avg_amount
+amount_stddev
+cadence
+first_seen
+last_seen
+is_recurring
+```
+
+Better conceptual model:
+
+```text
+merchant = entity
+category = transaction classification
+recurring charge = merchant/category/amount pattern
+```
+
+This would make the project easier to explain and would prevent confusion around whether a merchant can have multiple categories. Yes, a merchant can have multiple transaction categories, but it should have a single merchant identity.
