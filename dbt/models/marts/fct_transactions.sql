@@ -3,7 +3,7 @@ with features as (
 ),
 
 recurring as (
-    select normalized_merchant, is_recurring
+    select normalized_merchant, final_category, is_recurring
     from {{ ref('int_recurring_transactions') }}
 )
 
@@ -41,4 +41,6 @@ select
     features.zscore_vs_merchant,
     features.zscore_vs_category
 from features
-left join recurring using (normalized_merchant)
+left join recurring
+    on features.normalized_merchant = recurring.normalized_merchant
+    and features.final_category = recurring.final_category

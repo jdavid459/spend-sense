@@ -708,3 +708,72 @@ MERCHANT_ENRICHMENT_BATCH_SIZE=10 or 25
 ```
 
 Potentially 50 per batch may work, but start with 10–25 for easier JSON parsing/retry behavior. A batch implementation should still cache each merchant row independently and fall back to smaller batches or individual retries if a batch fails.
+
+## Remaining Cohere roadmap
+
+The planned metrics layer is the next analytics-engineering slice, but it does not replace the Cohere roadmap. Remaining Cohere-focused features to add:
+
+1. Semantic transaction search using Cohere embeddings.
+   - Build searchable transaction text from modeled marts.
+   - Cache embeddings locally in DuckDB.
+   - Embed user query and use vector similarity to return relevant transactions.
+   - Example queries: `coffee shops`, `subscriptions`, `health expenses`, `transportation`, `large work-related purchases`.
+
+2. Cohere Rerank on top of semantic search.
+   - Retrieve top N candidates via embeddings.
+   - Rerank candidates with Cohere Rerank.
+   - Show the final ranked results in the app.
+
+3. Stronger grounded AI spend summary.
+   - Use the upcoming dbt metric marts rather than raw tables.
+   - Include category deltas, anomaly metrics, recurring burden, and data quality/AI coverage.
+
+4. Natural-language spend Q&A.
+   - Answer questions like `Why was March high?` or `Which subscriptions could I cut?`
+   - Ground responses in dbt marts, not raw model guesses.
+
+5. Batched merchant enrichment.
+   - Current enrichment is one merchant description per Cohere call.
+   - Future version should support `MERCHANT_ENRICHMENT_BATCH_SIZE=10` or `25`.
+   - Potentially 50 per batch may work, but start smaller for reliable JSON parsing.
+
+Recommended order remains:
+
+1. Metrics layer.
+2. Improve AI Summary using metrics.
+3. Semantic search with embeddings.
+4. Rerank.
+5. Batched enrichment.
+
+## Test failure investigation: duplicate `fct_transactions.transaction_id`
+
+A dbt build failed on:
+
+```text
+unique_fct_transactions_transaction_id
+```
+
+Observed 6 duplicate `transaction_id` values in `marts.fct_transactions`.
+
+Investigation notes:
+
+- `raw.chase_transactions` had no duplicate `row_hash` values.
+- `staging.stg_chase_transactions` had no duplicate `transaction_id` values.
+- `intermediate.int_merchant_normalization` had 587 rows / 587 distinct transaction IDs.
+- `intermediate.int_transaction_features` had 587 rows / 587 distinct transaction IDs.
+- `intermediate.int_recurring_transactions` had duplicate `normalized_merchant` values because it is grouped by both `normalized_merchant` and `final_category`.
+
+Root cause:
+
+`fct_transactions` joined recurring data only by `normalized_merchant`. If the same merchant appeared in multiple categories, that join could duplicate transaction rows.
+
+Fix:
+
+Updated `dbt/models/marts/fct_transactions.sql` so the recurring CTE includes `final_category` and joins on both:
+
+```sql
+on features.normalized_merchant = recurring.normalized_merchant
+and features.final_category = recurring.final_category
+```
+
+This preserves one row per transaction and should fix the failing unique test.
