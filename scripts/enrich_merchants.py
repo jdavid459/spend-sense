@@ -112,7 +112,7 @@ def get_candidates(con: duckdb.DuckDBPyConnection, limit: int):
 
 def main():
     limit = int(os.getenv("MERCHANT_ENRICHMENT_LIMIT", "25"))
-    model = os.getenv("COHERE_MODEL", "command-r-plus")
+    model = os.getenv("COHERE_MODEL", "command-a-03-2025")
 
     with duckdb.connect(str(DUCKDB_PATH)) as con:
         ensure_ai_cache(con)

@@ -415,3 +415,22 @@ python app/app.py
 ```
 
 The second dbt run is needed so cached AI suggestions are incorporated into `int_merchant_normalization`, `fct_transactions`, and downstream marts.
+
+## Cohere model deprecation fix
+
+The first enrichment run failed with HTTP 404s because `.env` and code defaults used `command-r-plus`, which Cohere removed on September 15, 2025.
+
+Updated model defaults to:
+
+```text
+COHERE_MODEL=command-a-03-2025
+```
+
+Changed in:
+
+- `.env.example`
+- local `.env` (ignored by git)
+- `scripts/enrich_merchants.py`
+- `src/cohere_client.py`
+
+The Cohere endpoint was reachable; the issue was the deprecated model name, not the URL.

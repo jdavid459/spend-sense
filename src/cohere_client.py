@@ -10,7 +10,7 @@ def summarize_spend(metrics_text: str) -> str:
     if not api_key:
         return "Cohere API key is not configured. Add COHERE_API_KEY to .env to enable AI summaries."
 
-    model = os.getenv("COHERE_MODEL", "command-r-plus")
+    model = os.getenv("COHERE_MODEL", "command-a-03-2025")
     prompt = f"""
 You are a concise personal finance analytics assistant.
 Summarize the user's spending from the metrics below.
