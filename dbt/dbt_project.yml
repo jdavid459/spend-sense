@@ -1,0 +1,24 @@
+name: spend_sense
+version: "1.0"
+config-version: 2
+
+profile: spend_sense
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+
+models:
+  spend_sense:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
+
+seeds:
+  spend_sense:
+    +schema: seeds

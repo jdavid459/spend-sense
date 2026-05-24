@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Local env/secrets
+.env
+
+# Private financial data
+data/private/*
+!data/private/.gitkeep
+
+# Generated databases / dbt artifacts
+duckdb/*.duckdb
+duckdb/*.wal
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml
+logs/
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/

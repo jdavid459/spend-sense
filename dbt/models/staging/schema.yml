@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: stg_chase_transactions
+    description: Cleaned Chase transaction CSV rows with stable transaction ids and typed fields.
+    columns:
+      - name: transaction_id
+        tests:
+          - not_null
+          - unique
+      - name: transaction_date
+        tests:
+          - not_null
+      - name: raw_description
+        tests:
+          - not_null
+      - name: amount
+        tests:
+          - not_null
+      - name: transaction_type
+        tests:
+          - not_null

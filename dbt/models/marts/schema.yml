@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: fct_transactions
+    description: Final transaction fact table consumed by the dashboard.
+    columns:
+      - name: transaction_id
+        tests:
+          - not_null
+          - unique
+      - name: transaction_date
+        tests:
+          - not_null
+      - name: final_category
+        tests:
+          - not_null
+  - name: mart_monthly_spend
+    description: Monthly category-level spend metrics.
+  - name: mart_anomalies
+    description: Transactions flagged as spend anomalies.
+  - name: mart_recurring_spend
+    description: Merchant-level recurring spend/subscription candidates.

@@ -1,0 +1,19 @@
+pattern,normalized_merchant,merchant_group,default_category
+NETFLIX,Netflix,Streaming,Entertainment
+NFLX,Netflix,Streaming,Entertainment
+SPOTIFY,Spotify,Streaming,Entertainment
+APPLE.COM/BILL,Apple,Digital Services,Bills & Utilities
+APPLE SERVICES,Apple,Digital Services,Bills & Utilities
+OPENAI,OpenAI,AI Tools,Professional Services
+WHOLE FOODS,Whole Foods,Groceries,Groceries
+TRADER JOE,Trader Joe's,Groceries,Groceries
+BLUE BOTTLE,Blue Bottle Coffee,Coffee,Food & Drink
+SWEETGREEN,Sweetgreen,Restaurants,Food & Drink
+DOORDASH,DoorDash,Food Delivery,Food & Drink
+DD *,DoorDash,Food Delivery,Food & Drink
+UBER EATS,Uber Eats,Food Delivery,Food & Drink
+UBER,Uber,Rideshare,Travel
+AMZN,Amazon,Marketplace,Shopping
+AMAZON,Amazon,Marketplace,Shopping
+TARGET,Target,Retail,Shopping
+PAYMENT THANK YOU,Chase Payment,Payment,Payment

@@ -1,0 +1,12 @@
+[project]
+name = "spend-sense"
+version = "0.1.0"
+description = "AI-assisted personal spend analytics app using Chase CSV, DuckDB, dbt, Dash, and Cohere."
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = []

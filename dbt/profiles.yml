@@ -1,0 +1,7 @@
+spend_sense:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../duckdb/spend_sense.duckdb
+      threads: 4
