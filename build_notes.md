@@ -214,3 +214,27 @@ https://github.com/jdavid459/spend-sense
 ```
 
 Pushed local `main` to `origin/main`. Private spend data remains excluded by `.gitignore`; only the synthetic demo CSV is committed.
+
+## Dashboard UX iteration
+
+Reworked `app/app.py` from a proof-of-plumbing UI into a more useful analytics dashboard:
+
+- Added a polished header and consistent card styling.
+- Added global filters for date range, category, merchant, and view mode.
+- Added KPI cards that respond to filters.
+- Rebuilt the Overview tab with monthly spend, category spend, top merchants, and daily spend charts.
+- Replaced static Bootstrap tables with sortable/filterable Dash DataTables.
+- Added explainable anomaly cards plus anomaly details table.
+- Improved the recurring spend tab with a chart and table.
+- Added a Merchant Cleanup tab to review normalized merchants and raw description examples, which can drive future seed-rule improvements.
+- Updated AI Summary to summarize the filtered dbt mart data rather than the full static dataset.
+
+## Local Dash port configurability
+
+The default Dash port `8050` was already in use during validation, so `app/app.py` now supports overriding the port with an environment variable:
+
+```bash
+PORT=8051 python app/app.py
+```
+
+Default remains `8050`.

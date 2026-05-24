@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 import dash
 import dash_bootstrap_components as dbc
+import pandas as pd
 import plotly.express as px
-from dash import Input, Output, dcc, html
+from dash import Input, Output, dash_table, dcc, html
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -14,126 +16,561 @@ from src.cohere_client import summarize_spend
 from src.config import DATA_MODE
 from src.db import query_df
 
+ACCENT = "#2563eb"
+MUTED = "#64748b"
+BACKGROUND = "#f8fafc"
+CARD_STYLE = {
+    "border": "0",
+    "borderRadius": "18px",
+    "boxShadow": "0 12px 30px rgba(15, 23, 42, 0.08)",
+}
+
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server = app.server
 
 
-def safe_query(sql: str):
+def safe_query(sql: str) -> pd.DataFrame:
     try:
         return query_df(sql)
     except Exception:
-        return None
+        return pd.DataFrame()
 
 
-transactions = safe_query("select * from marts.fct_transactions order by transaction_date desc")
-monthly = safe_query("select * from marts.mart_monthly_spend order by month")
-anomalies = safe_query("select * from marts.mart_anomalies order by severity_score desc")
-recurring = safe_query("select * from marts.mart_recurring_spend order by estimated_monthly_cost desc")
+def money(value: float | int | None) -> str:
+    if pd.isna(value) or value is None:
+        return "$0.00"
+    return f"${value:,.2f}"
 
-if transactions is not None and not transactions.empty:
-    total_spend = transactions.loc[transactions["is_debit"], "amount_abs"].sum()
-    txn_count = len(transactions)
-    anomaly_count = int(transactions["is_anomaly"].sum())
-    recurring_total = 0 if recurring is None or recurring.empty else recurring["estimated_monthly_cost"].sum()
-else:
-    total_spend = txn_count = anomaly_count = recurring_total = 0
 
-app.layout = dbc.Container(
-    [
-        dbc.Row(
+def pct(value: float | int | None) -> str:
+    if pd.isna(value) or value is None:
+        return "—"
+    return f"{value:.1%}"
+
+
+def load_data() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    txns = safe_query("select * from marts.fct_transactions order by transaction_date desc")
+    monthly_spend = safe_query("select * from marts.mart_monthly_spend order by month")
+    flagged = safe_query("select * from marts.mart_anomalies order by severity_score desc")
+    recurring_spend = safe_query("select * from marts.mart_recurring_spend order by estimated_monthly_cost desc")
+
+    for df in [txns, monthly_spend, flagged, recurring_spend]:
+        for col in df.columns:
+            if "date" in col or col in {"month", "first_seen", "last_seen"}:
+                df[col] = pd.to_datetime(df[col], errors="coerce")
+
+    return txns, monthly_spend, flagged, recurring_spend
+
+
+transactions, monthly, anomalies, recurring = load_data()
+
+
+def filter_transactions(
+    start_date: str | None,
+    end_date: str | None,
+    categories: list[str] | None,
+    merchants: list[str] | None,
+    view_mode: str,
+) -> pd.DataFrame:
+    if transactions.empty:
+        return transactions.copy()
+
+    df = transactions.copy()
+    if start_date:
+        df = df[df["transaction_date"] >= pd.to_datetime(start_date)]
+    if end_date:
+        df = df[df["transaction_date"] <= pd.to_datetime(end_date)]
+    if categories:
+        df = df[df["final_category"].isin(categories)]
+    if merchants:
+        df = df[df["normalized_merchant"].isin(merchants)]
+    if view_mode == "debits":
+        df = df[df["is_debit"]]
+    elif view_mode == "credits":
+        df = df[df["is_credit"]]
+    elif view_mode == "anomalies":
+        df = df[df["is_anomaly"]]
+    elif view_mode == "recurring":
+        df = df[df["is_recurring"]]
+    return df
+
+
+def metric_card(title: str, value: str, subtitle: str = "", color: str = ACCENT) -> dbc.Card:
+    return dbc.Card(
+        dbc.CardBody(
             [
-                dbc.Col(html.H1("SpendSense"), md=8),
-                dbc.Col(dbc.Badge(f"Dataset: {DATA_MODE}", color="info", className="mt-3"), md=4),
-            ],
-            align="center",
-        ),
-        html.P("AI-assisted spend analytics from Chase-like transaction data."),
-        dbc.Alert(
-            "If charts are empty, run: python scripts/generate_demo_data.py && "
-            "python scripts/ingest_chase_csv.py && cd dbt && dbt seed --profiles-dir . && "
-            "dbt run --profiles-dir .",
-            color="warning",
-            is_open=transactions is None,
-        ),
-        dbc.Row(
-            [
-                dbc.Col(dbc.Card(dbc.CardBody([html.H6("Total Spend"), html.H3(f"${total_spend:,.2f}")])), md=3),
-                dbc.Col(dbc.Card(dbc.CardBody([html.H6("Transactions"), html.H3(f"{txn_count:,}")])), md=3),
-                dbc.Col(dbc.Card(dbc.CardBody([html.H6("Anomalies"), html.H3(f"{anomaly_count:,}")])), md=3),
-                dbc.Col(
-                    dbc.Card(dbc.CardBody([html.H6("Monthly Recurring"), html.H3(f"${recurring_total:,.2f}")])),
-                    md=3,
-                ),
-            ],
-            className="mb-4",
-        ),
-        dcc.Tabs(
-            [
-                dcc.Tab(label="Overview", children=[html.Div(id="overview-tab", className="p-3")]),
-                dcc.Tab(label="Transactions", children=[html.Div(id="transactions-tab", className="p-3")]),
-                dcc.Tab(label="Anomalies", children=[html.Div(id="anomalies-tab", className="p-3")]),
-                dcc.Tab(label="Recurring", children=[html.Div(id="recurring-tab", className="p-3")]),
-                dcc.Tab(label="AI Summary", children=[html.Div(id="ai-tab", className="p-3")]),
+                html.Div(title, className="text-uppercase small fw-semibold", style={"color": MUTED}),
+                html.Div(value, className="display-6 fw-bold", style={"color": color}),
+                html.Div(subtitle, className="small", style={"color": MUTED}),
             ]
         ),
+        style=CARD_STYLE,
+    )
+
+
+def empty_state(message: str) -> dbc.Alert:
+    return dbc.Alert(message, color="light", className="border")
+
+
+def table_from_df(df: pd.DataFrame, columns: list[str], page_size: int = 15) -> dash_table.DataTable:
+    table_df = df[columns].copy()
+    for col in table_df.columns:
+        if pd.api.types.is_datetime64_any_dtype(table_df[col]):
+            table_df[col] = table_df[col].dt.strftime("%Y-%m-%d")
+    for col in ["amount", "amount_abs", "estimated_monthly_cost", "severity_score"]:
+        if col in table_df.columns:
+            table_df[col] = table_df[col].round(2)
+
+    return dash_table.DataTable(
+        data=table_df.to_dict("records"),
+        columns=[{"name": col.replace("_", " ").title(), "id": col} for col in table_df.columns],
+        page_size=page_size,
+        sort_action="native",
+        filter_action="native",
+        style_table={"overflowX": "auto"},
+        style_cell={
+            "fontFamily": "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+            "fontSize": "13px",
+            "padding": "10px",
+            "textAlign": "left",
+            "maxWidth": "280px",
+            "overflow": "hidden",
+            "textOverflow": "ellipsis",
+        },
+        style_header={"backgroundColor": "#f1f5f9", "fontWeight": "700", "border": "0"},
+        style_data={"border": "0", "borderBottom": "1px solid #e2e8f0"},
+        style_data_conditional=[
+            {"if": {"filter_query": "{is_anomaly} = True"}, "backgroundColor": "#fef2f2"},
+            {"if": {"filter_query": "{is_recurring} = True"}, "backgroundColor": "#eff6ff"},
+        ],
+    )
+
+
+def date_bounds() -> tuple[str | None, str | None]:
+    if transactions.empty:
+        return None, None
+    return (
+        transactions["transaction_date"].min().date().isoformat(),
+        transactions["transaction_date"].max().date().isoformat(),
+    )
+
+
+min_date, max_date = date_bounds()
+category_options = [
+    {"label": category, "value": category}
+    for category in sorted(transactions.get("final_category", pd.Series(dtype=str)).dropna().unique())
+]
+merchant_options = [
+    {"label": merchant, "value": merchant}
+    for merchant in sorted(transactions.get("normalized_merchant", pd.Series(dtype=str)).dropna().unique())
+]
+
+app.layout = html.Div(
+    style={"backgroundColor": BACKGROUND, "minHeight": "100vh"},
+    children=[
+        dbc.Container(
+            [
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            [
+                                html.Div("SpendSense", className="display-5 fw-bold"),
+                                html.Div(
+                                    "A dbt-backed transaction intelligence dashboard for Chase CSV data.",
+                                    style={"color": MUTED},
+                                ),
+                            ],
+                            md=8,
+                        ),
+                        dbc.Col(
+                            dbc.Badge(
+                                f"Dataset: {DATA_MODE}",
+                                color="primary" if DATA_MODE == "private" else "success",
+                                className="px-3 py-2 fs-6 mt-3 float-md-end",
+                            ),
+                            md=4,
+                        ),
+                    ],
+                    align="center",
+                    className="pt-4 pb-3",
+                ),
+                dbc.Alert(
+                    "No mart data found. Run ingestion and dbt first, then restart the app.",
+                    color="warning",
+                    is_open=transactions.empty,
+                ),
+                dbc.Card(
+                    dbc.CardBody(
+                        [
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            html.Label("Date range", className="small fw-semibold"),
+                                            dcc.DatePickerRange(
+                                                id="date-range",
+                                                min_date_allowed=min_date,
+                                                max_date_allowed=max_date,
+                                                start_date=min_date,
+                                                end_date=max_date,
+                                                display_format="MMM D, YYYY",
+                                            ),
+                                        ],
+                                        lg=3,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            html.Label("Categories", className="small fw-semibold"),
+                                            dcc.Dropdown(
+                                                id="category-filter",
+                                                options=category_options,
+                                                multi=True,
+                                                placeholder="All categories",
+                                            ),
+                                        ],
+                                        lg=3,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            html.Label("Merchants", className="small fw-semibold"),
+                                            dcc.Dropdown(
+                                                id="merchant-filter",
+                                                options=merchant_options,
+                                                multi=True,
+                                                placeholder="All merchants",
+                                            ),
+                                        ],
+                                        lg=3,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            html.Label("View", className="small fw-semibold"),
+                                            dbc.RadioItems(
+                                                id="view-mode",
+                                                options=[
+                                                    {"label": "Debits", "value": "debits"},
+                                                    {"label": "All", "value": "all"},
+                                                    {"label": "Anomalies", "value": "anomalies"},
+                                                    {"label": "Recurring", "value": "recurring"},
+                                                ],
+                                                value="debits",
+                                                inline=True,
+                                            ),
+                                        ],
+                                        lg=3,
+                                    ),
+                                ],
+                                className="g-3",
+                            )
+                        ]
+                    ),
+                    style=CARD_STYLE,
+                    className="mb-4",
+                ),
+                html.Div(id="kpi-row", className="mb-4"),
+                dcc.Tabs(
+                    id="tabs",
+                    value="overview",
+                    children=[
+                        dcc.Tab(label="Overview", value="overview"),
+                        dcc.Tab(label="Transactions", value="transactions"),
+                        dcc.Tab(label="Anomalies", value="anomalies"),
+                        dcc.Tab(label="Recurring", value="recurring"),
+                        dcc.Tab(label="Merchant Cleanup", value="merchants"),
+                        dcc.Tab(label="AI Summary", value="ai"),
+                    ],
+                ),
+                html.Div(id="tab-content", className="py-4"),
+            ],
+            fluid=True,
+            style={"maxWidth": "1500px"},
+        )
     ],
-    fluid=True,
 )
 
 
-@app.callback(Output("overview-tab", "children"), Input("overview-tab", "id"))
-def render_overview(_):
-    if monthly is None or monthly.empty:
-        return html.P("No monthly spend data available yet.")
-    fig_month = px.line(monthly, x="month", y="total_spend", color="final_category", markers=True)
-    fig_cat = px.bar(
-        monthly.groupby("final_category", as_index=False)["total_spend"].sum(),
-        x="final_category",
-        y="total_spend",
-        title="Spend by category",
+@app.callback(
+    Output("kpi-row", "children"),
+    Input("date-range", "start_date"),
+    Input("date-range", "end_date"),
+    Input("category-filter", "value"),
+    Input("merchant-filter", "value"),
+    Input("view-mode", "value"),
+)
+def render_kpis(start_date, end_date, categories, merchants, view_mode):
+    df = filter_transactions(start_date, end_date, categories, merchants, view_mode)
+    debits = df[df["is_debit"]] if not df.empty else df
+    credits = df[df["is_credit"]] if not df.empty else df
+    top_category = "—"
+    top_category_spend = 0
+    if not debits.empty:
+        category_spend = debits.groupby("final_category")["amount_abs"].sum().sort_values(ascending=False)
+        top_category = category_spend.index[0]
+        top_category_spend = category_spend.iloc[0]
+    recurring_total = debits.loc[debits["is_recurring"], "amount_abs"].sum() if not debits.empty else 0
+
+    return dbc.Row(
+        [
+            dbc.Col(
+                metric_card("Spend", money(debits["amount_abs"].sum() if not debits.empty else 0), "Filtered debits"),
+                lg=3,
+            ),
+            dbc.Col(
+                metric_card(
+                    "Credits",
+                    money(credits["amount_abs"].sum() if not credits.empty else 0),
+                    "Payments/credits",
+                    "#16a34a",
+                ),
+                lg=3,
+            ),
+            dbc.Col(metric_card("Top Category", top_category, money(top_category_spend)), lg=3),
+            dbc.Col(
+                metric_card(
+                    "Anomalies",
+                    f"{int(df['is_anomaly'].sum()) if not df.empty else 0:,}",
+                    "Flagged transactions",
+                    "#dc2626",
+                ),
+                lg=3,
+            ),
+            dbc.Col(metric_card("Transactions", f"{len(df):,}", "Rows in current view"), lg=3, className="mt-3"),
+            dbc.Col(
+                metric_card(
+                    "Avg Transaction", money(debits["amount_abs"].mean() if not debits.empty else 0), "Debit avg"
+                ),
+                lg=3,
+                className="mt-3",
+            ),
+            dbc.Col(
+                metric_card("Recurring Spend", money(recurring_total), "Observed in filtered data"),
+                lg=3,
+                className="mt-3",
+            ),
+            dbc.Col(
+                metric_card("Date Window", f"{start_date or '—'} → {end_date or '—'}", "Active filter"),
+                lg=3,
+                className="mt-3",
+            ),
+        ],
+        className="g-3",
     )
-    return [dcc.Graph(figure=fig_month), dcc.Graph(figure=fig_cat)]
 
 
-@app.callback(Output("transactions-tab", "children"), Input("transactions-tab", "id"))
-def render_transactions(_):
-    if transactions is None or transactions.empty:
-        return html.P("No transactions available yet.")
-    cols = ["transaction_date", "normalized_merchant", "final_category", "amount", "is_recurring", "is_anomaly"]
-    return dbc.Table.from_dataframe(transactions[cols].head(100), striped=True, bordered=True, hover=True)
+@app.callback(
+    Output("tab-content", "children"),
+    Input("tabs", "value"),
+    Input("date-range", "start_date"),
+    Input("date-range", "end_date"),
+    Input("category-filter", "value"),
+    Input("merchant-filter", "value"),
+    Input("view-mode", "value"),
+)
+def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
+    df = filter_transactions(start_date, end_date, categories, merchants, view_mode)
+    if df.empty:
+        return empty_state("No transactions match the current filters.")
 
+    debits = df[df["is_debit"]].copy()
 
-@app.callback(Output("anomalies-tab", "children"), Input("anomalies-tab", "id"))
-def render_anomalies(_):
-    if anomalies is None or anomalies.empty:
-        return html.P("No anomalies flagged yet.")
-    return dbc.Table.from_dataframe(anomalies, striped=True, bordered=True, hover=True)
+    if tab == "overview":
+        monthly_filtered = (
+            debits.assign(month=debits["transaction_date"].dt.to_period("M").dt.to_timestamp())
+            .groupby(["month", "final_category"], as_index=False)["amount_abs"]
+            .sum()
+        )
+        category_spend = debits.groupby("final_category", as_index=False)["amount_abs"].sum()
+        merchant_spend = (
+            debits.groupby("normalized_merchant", as_index=False)["amount_abs"]
+            .sum()
+            .sort_values("amount_abs", ascending=False)
+            .head(15)
+        )
+        daily = debits.groupby("transaction_date", as_index=False)["amount_abs"].sum()
 
+        fig_month = px.line(
+            monthly_filtered,
+            x="month",
+            y="amount_abs",
+            color="final_category",
+            markers=True,
+            title="Monthly spend by category",
+        )
+        fig_cat = px.bar(
+            category_spend.sort_values("amount_abs", ascending=False),
+            x="final_category",
+            y="amount_abs",
+            title="Spend by category",
+        )
+        fig_merchants = px.bar(
+            merchant_spend.sort_values("amount_abs"),
+            x="amount_abs",
+            y="normalized_merchant",
+            orientation="h",
+            title="Top merchants by spend",
+        )
+        fig_daily = px.line(daily, x="transaction_date", y="amount_abs", title="Daily spend")
+        for fig in [fig_month, fig_cat, fig_merchants, fig_daily]:
+            fig.update_layout(template="plotly_white", margin=dict(l=30, r=20, t=60, b=30))
 
-@app.callback(Output("recurring-tab", "children"), Input("recurring-tab", "id"))
-def render_recurring(_):
-    if recurring is None or recurring.empty:
-        return html.P("No recurring transactions detected yet.")
-    fig = px.bar(
-        recurring,
-        x="normalized_merchant",
-        y="estimated_monthly_cost",
-        title="Estimated monthly recurring spend",
-    )
-    return [dcc.Graph(figure=fig), dbc.Table.from_dataframe(recurring, striped=True, bordered=True, hover=True)]
+        return dbc.Row(
+            [
+                dbc.Col(dbc.Card(dbc.CardBody(dcc.Graph(figure=fig_month)), style=CARD_STYLE), lg=8),
+                dbc.Col(dbc.Card(dbc.CardBody(dcc.Graph(figure=fig_cat)), style=CARD_STYLE), lg=4),
+                dbc.Col(
+                    dbc.Card(dbc.CardBody(dcc.Graph(figure=fig_merchants)), style=CARD_STYLE), lg=6, className="mt-4"
+                ),
+                dbc.Col(dbc.Card(dbc.CardBody(dcc.Graph(figure=fig_daily)), style=CARD_STYLE), lg=6, className="mt-4"),
+            ],
+            className="g-3",
+        )
 
+    if tab == "transactions":
+        cols = [
+            "transaction_date",
+            "normalized_merchant",
+            "merchant_group",
+            "final_category",
+            "raw_category",
+            "amount",
+            "transaction_type",
+            "is_recurring",
+            "is_anomaly",
+            "raw_description",
+        ]
+        return dbc.Card(dbc.CardBody(table_from_df(df, cols, 20)), style=CARD_STYLE)
 
-@app.callback(Output("ai-tab", "children"), Input("ai-tab", "id"))
-def render_ai(_):
-    if monthly is None or monthly.empty:
-        return html.P("No metrics available for summary yet.")
-    metrics = ["Monthly spend by category:", monthly.to_string(index=False)]
-    if anomalies is not None and not anomalies.empty:
-        metrics += ["\nAnomalies:", anomalies.head(10).to_string(index=False)]
-    if recurring is not None and not recurring.empty:
-        metrics += ["\nRecurring spend:", recurring.to_string(index=False)]
-    return dbc.Card(dbc.CardBody(html.Pre(summarize_spend("\n".join(metrics)), style={"whiteSpace": "pre-wrap"})))
+    if tab == "anomalies":
+        flagged = df[df["is_anomaly"]].copy().sort_values(["zscore_vs_merchant", "zscore_vs_category"], ascending=False)
+        if flagged.empty:
+            return empty_state("No anomalies match the current filters.")
+        cards = []
+        for _, row in flagged.head(10).iterrows():
+            severity = max(row.get("zscore_vs_merchant") or 0, row.get("zscore_vs_category") or 0)
+            cards.append(
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody(
+                            [
+                                html.Div(row["normalized_merchant"], className="fw-bold fs-5"),
+                                html.Div(row["transaction_date"].strftime("%Y-%m-%d"), style={"color": MUTED}),
+                                html.Div(money(row["amount_abs"]), className="display-6 fw-bold text-danger"),
+                                html.Div(row.get("anomaly_reason") or "Flagged as unusual"),
+                                dbc.Badge(f"severity {severity:.1f}", color="danger", className="mt-2"),
+                            ]
+                        ),
+                        style=CARD_STYLE,
+                    ),
+                    lg=4,
+                    className="mb-3",
+                )
+            )
+        cols = [
+            "transaction_date",
+            "normalized_merchant",
+            "final_category",
+            "amount_abs",
+            "anomaly_reason",
+            "zscore_vs_merchant",
+            "zscore_vs_category",
+        ]
+        return [dbc.Row(cards), dbc.Card(dbc.CardBody(table_from_df(flagged, cols, 15)), style=CARD_STYLE)]
+
+    if tab == "recurring":
+        filtered_merchants = debits[debits["is_recurring"]]["normalized_merchant"].unique()
+        recurring_filtered = recurring[recurring["normalized_merchant"].isin(filtered_merchants)].copy()
+        if recurring_filtered.empty:
+            return empty_state("No recurring transactions match the current filters.")
+        fig = px.bar(
+            recurring_filtered,
+            x="estimated_monthly_cost",
+            y="normalized_merchant",
+            orientation="h",
+            title="Estimated monthly recurring spend",
+        )
+        fig.update_layout(template="plotly_white", margin=dict(l=30, r=20, t=60, b=30))
+        cols = [
+            "normalized_merchant",
+            "final_category",
+            "cadence",
+            "avg_amount",
+            "estimated_monthly_cost",
+            "transaction_count",
+            "first_seen",
+            "last_seen",
+        ]
+        return dbc.Row(
+            [
+                dbc.Col(dbc.Card(dbc.CardBody(dcc.Graph(figure=fig)), style=CARD_STYLE), lg=5),
+                dbc.Col(dbc.Card(dbc.CardBody(table_from_df(recurring_filtered, cols, 15)), style=CARD_STYLE), lg=7),
+            ],
+            className="g-3",
+        )
+
+    if tab == "merchants":
+        merchant_summary = (
+            df.groupby(["normalized_merchant", "merchant_group", "final_category"], as_index=False)
+            .agg(
+                transaction_count=("transaction_id", "count"),
+                total_spend=("amount_abs", "sum"),
+                raw_description_examples=("raw_description", lambda values: "; ".join(sorted(set(values))[:3])),
+            )
+            .sort_values(["transaction_count", "total_spend"], ascending=False)
+        )
+        cols = [
+            "normalized_merchant",
+            "merchant_group",
+            "final_category",
+            "transaction_count",
+            "total_spend",
+            "raw_description_examples",
+        ]
+        return dbc.Card(
+            dbc.CardBody(
+                [
+                    html.H4("Merchant normalization review"),
+                    html.P(
+                        "Use this to decide which real merchant patterns should be added "
+                        "to dbt/seeds/merchant_rules.csv.",
+                        style={"color": MUTED},
+                    ),
+                    table_from_df(merchant_summary, cols, 20),
+                ]
+            ),
+            style=CARD_STYLE,
+        )
+
+    if tab == "ai":
+        metrics = [
+            "Filtered spend summary:",
+            f"Total debit spend: {money(debits['amount_abs'].sum() if not debits.empty else 0)}",
+            f"Transaction count: {len(df)}",
+            "\nTop categories:",
+            debits.groupby("final_category")["amount_abs"].sum().sort_values(ascending=False).head(10).to_string(),
+            "\nTop merchants:",
+            debits.groupby("normalized_merchant")["amount_abs"].sum().sort_values(ascending=False).head(10).to_string(),
+        ]
+        flagged = df[df["is_anomaly"]]
+        if not flagged.empty:
+            metrics += ["\nAnomalies:", flagged.head(10).to_string(index=False)]
+        if not recurring.empty:
+            metrics += ["\nRecurring spend:", recurring.head(10).to_string(index=False)]
+        return dbc.Card(
+            dbc.CardBody(
+                [
+                    html.H4("AI-generated spending summary"),
+                    html.P(
+                        "Grounded in the filtered dbt mart data. Configure COHERE_API_KEY to enable generation.",
+                        style={"color": MUTED},
+                    ),
+                    html.Pre(summarize_spend("\n".join(metrics)), style={"whiteSpace": "pre-wrap"}),
+                ]
+            ),
+            style=CARD_STYLE,
+        )
+
+    return empty_state("Unknown tab.")
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=int(os.getenv("PORT", "8050")))
