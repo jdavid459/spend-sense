@@ -359,3 +359,59 @@ Columns include:
 Updated `app/app.py` so the Merchant Cleanup tab reads from `marts.mart_merchant_review` instead of aggregating directly in Python.
 
 Privacy note: did not commit merchant rules derived from the user's private Chase data. The public `merchant_rules.csv` remains generic for now. If we add private-data-derived rules later, use a local/private ignored override or only add non-sensitive generic patterns.
+
+## Cohere merchant enrichment cache
+
+Added the first governed Cohere enrichment path.
+
+New files/models:
+
+- `src/ai_cache.py`
+  - central DDL/helper for creating `ai.merchant_enrichment_cache`
+- `scripts/enrich_merchants.py`
+  - reads high-priority `needs_review` rows from `marts.mart_merchant_review`
+  - calls Cohere Chat API directly via HTTPS
+  - requests structured JSON merchant/category suggestions
+  - writes results to `ai.merchant_enrichment_cache`
+  - skips already cached raw descriptions
+- `dbt/models/staging/stg_ai_merchant_enrichments.sql`
+  - dbt view over the enrichment cache
+
+Updated pipeline behavior:
+
+- `scripts/ingest_chase_csv.py` now ensures the empty `ai.merchant_enrichment_cache` table exists, so dbt can run even before any Cohere enrichment has happened.
+- `int_merchant_normalization` now applies merchant/category precedence:
+
+```text
+seed rule > Cohere cache with confidence >= 0.70 > raw fallback
+```
+
+- Added provenance fields:
+
+```text
+merchant_source = seed_rule | cohere_cache | fallback
+category_source = seed_rule | cohere_cache | chase_raw
+ai_confidence
+ai_reasoning
+```
+
+- `fct_transactions` and `mart_merchant_review` now expose these provenance fields.
+- Merchant Cleanup tab now shows provenance columns so it is clear what came from deterministic rules vs AI cache vs fallback.
+
+Important implementation note:
+
+- The installed `cohere` Python package imports `fastavro`, which failed locally because this Python build is missing `_lzma`. To avoid blocking the project, Cohere API calls are made directly with `requests` against `https://api.cohere.com/v2/chat`.
+- This still uses Cohere product APIs, but avoids the local package import issue.
+
+How to run enrichment after setting `COHERE_API_KEY` in `.env`:
+
+```bash
+source .venv/bin/activate
+python scripts/ingest_chase_csv.py
+cd dbt && dbt run --profiles-dir . && cd ..
+MERCHANT_ENRICHMENT_LIMIT=25 python scripts/enrich_merchants.py
+cd dbt && dbt run --profiles-dir . && dbt test --profiles-dir . && cd ..
+python app/app.py
+```
+
+The second dbt run is needed so cached AI suggestions are incorporated into `int_merchant_normalization`, `fct_transactions`, and downstream marts.

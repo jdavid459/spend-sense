@@ -8,6 +8,8 @@ merchant_descriptions as (
         raw_description,
         normalized_merchant,
         merchant_group,
+        merchant_source,
+        category_source,
         raw_category,
         final_category,
         count(*) as transaction_count,
@@ -18,28 +20,33 @@ merchant_descriptions as (
         sum(case when is_anomaly then 1 else 0 end) as anomaly_count,
         max(case when is_recurring then 1 else 0 end)::boolean as has_recurring_flag
     from txns
-    group by 1, 2, 3, 4, 5
+    group by 1, 2, 3, 4, 5, 6, 7
 ),
 
 scored as (
     select
         *,
         case
+            when merchant_source = 'fallback' then true
             when merchant_group = 'Unmapped' then true
             when normalized_merchant = raw_description then true
             else false
         end as needs_review,
         case
-            when merchant_group = 'Unmapped' and transaction_count >= 3
-                then 'High-frequency unmapped merchant'
-            when merchant_group = 'Unmapped' and total_spend >= 250
-                then 'High-spend unmapped merchant'
+            when merchant_source = 'fallback' and transaction_count >= 3
+                then 'High-frequency fallback merchant'
+            when merchant_source = 'fallback' and total_spend >= 250
+                then 'High-spend fallback merchant'
+            when merchant_source = 'cohere_cache'
+                then 'Mapped by Cohere enrichment cache'
             when normalized_merchant = raw_description
                 then 'Raw description used as merchant fallback'
-            else 'Mapped by existing rules'
+            else 'Mapped by seed rules'
         end as review_reason,
         case
-            when merchant_group = 'Unmapped' then 100 else 0
+            when merchant_source = 'fallback' then 100
+            when merchant_source = 'cohere_cache' then 10
+            else 0
         end
         + least(transaction_count, 25) * 3
         + least(total_spend / 100, 25) as review_priority_score
@@ -50,6 +57,8 @@ select
     raw_description,
     normalized_merchant,
     merchant_group,
+    merchant_source,
+    category_source,
     raw_category,
     final_category,
     transaction_count,

@@ -11,6 +11,7 @@ import duckdb
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+from src.ai_cache import ensure_ai_cache
 from src.config import DATA_MODE, DUCKDB_PATH, input_csv_path
 
 REQUIRED_COLUMNS = [
@@ -53,6 +54,7 @@ def main():
 
     DUCKDB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with duckdb.connect(str(DUCKDB_PATH)) as con:
+        ensure_ai_cache(con)
         con.execute("create schema if not exists raw")
         con.execute("drop table if exists raw.chase_transactions")
         con.register("raw_df", df)

@@ -2,19 +2,12 @@ from __future__ import annotations
 
 import os
 
-import cohere
-
-
-def get_client() -> cohere.Client | None:
-    api_key = os.getenv("COHERE_API_KEY")
-    if not api_key:
-        return None
-    return cohere.Client(api_key)
+import requests
 
 
 def summarize_spend(metrics_text: str) -> str:
-    client = get_client()
-    if client is None:
+    api_key = os.getenv("COHERE_API_KEY")
+    if not api_key:
         return "Cohere API key is not configured. Add COHERE_API_KEY to .env to enable AI summaries."
 
     model = os.getenv("COHERE_MODEL", "command-r-plus")
@@ -27,5 +20,14 @@ Metrics:
 {metrics_text}
 """.strip()
 
-    response = client.chat(model=model, message=prompt)
-    return response.text
+    response = requests.post(
+        "https://api.cohere.com/v2/chat",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": model, "messages": [{"role": "user", "content": prompt}]},
+        timeout=45,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    content = payload.get("message", {}).get("content", [])
+    text_parts = [part.get("text", "") for part in content if isinstance(part, dict)]
+    return "\n".join(text_parts).strip() or "No summary returned from Cohere."

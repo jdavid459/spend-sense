@@ -6,6 +6,10 @@ rules as (
     select * from {{ ref('merchant_rules') }}
 ),
 
+ai_enrichments as (
+    select * from {{ ref('stg_ai_merchant_enrichments') }}
+),
+
 matched as (
     select
         txns.transaction_id,
@@ -19,14 +23,46 @@ matched as (
     from txns
     left join rules
         on txns.clean_description like '%' || upper(rules.pattern) || '%'
+),
+
+best_match as (
+    select *
+    from matched
+    where match_rank = 1
+),
+
+resolved as (
+    select
+        txns.transaction_id,
+        coalesce(
+            best_match.normalized_merchant,
+            case when ai_enrichments.confidence >= 0.70 then ai_enrichments.suggested_merchant end,
+            txns.raw_description
+        ) as normalized_merchant,
+        coalesce(
+            best_match.merchant_group,
+            case when ai_enrichments.confidence >= 0.70 then ai_enrichments.suggested_merchant_group end,
+            'Unmapped'
+        ) as merchant_group,
+        best_match.default_category as rule_category,
+        case when ai_enrichments.confidence >= 0.70 then ai_enrichments.suggested_category end as ai_category,
+        ai_enrichments.confidence as ai_confidence,
+        ai_enrichments.reasoning as ai_reasoning,
+        case
+            when best_match.normalized_merchant is not null then 'seed_rule'
+            when ai_enrichments.confidence >= 0.70 then 'cohere_cache'
+            else 'fallback'
+        end as merchant_source,
+        case
+            when best_match.default_category is not null then 'seed_rule'
+            when ai_enrichments.confidence >= 0.70 and ai_enrichments.suggested_category is not null then 'cohere_cache'
+            else 'chase_raw'
+        end as category_source
+    from txns
+    left join best_match
+        on txns.transaction_id = best_match.transaction_id
+    left join ai_enrichments
+        on txns.raw_description = ai_enrichments.raw_description
 )
 
-select
-    txns.transaction_id,
-    coalesce(matched.normalized_merchant, txns.raw_description) as normalized_merchant,
-    coalesce(matched.merchant_group, 'Unmapped') as merchant_group,
-    matched.default_category as rule_category
-from txns
-left join matched
-    on txns.transaction_id = matched.transaction_id
-    and matched.match_rank = 1
+select * from resolved

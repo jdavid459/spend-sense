@@ -11,7 +11,12 @@ enriched as (
         txns.*,
         merchants.normalized_merchant,
         merchants.merchant_group,
-        coalesce(merchants.rule_category, txns.raw_category, 'Other') as final_category
+        merchants.merchant_source,
+        merchants.category_source,
+        merchants.ai_category,
+        merchants.ai_confidence,
+        merchants.ai_reasoning,
+        coalesce(merchants.rule_category, merchants.ai_category, txns.raw_category, 'Other') as final_category
     from txns
     left join merchants using (transaction_id)
 ),

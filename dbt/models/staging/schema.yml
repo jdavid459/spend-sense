@@ -20,3 +20,16 @@ models:
       - name: transaction_type
         tests:
           - not_null
+  - name: stg_ai_merchant_enrichments
+    description: Cached Cohere merchant/category suggestions for raw transaction descriptions.
+    columns:
+      - name: raw_description
+        tests:
+          - not_null
+          - unique
+      - name: suggested_merchant
+        tests:
+          - not_null
+      - name: confidence
+        tests:
+          - not_null

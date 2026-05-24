@@ -20,9 +20,7 @@ def project_path(path_value: str) -> Path:
 DATA_MODE = os.getenv("SPEND_DATA_MODE", "demo").lower()
 DUCKDB_PATH = project_path(os.getenv("DUCKDB_PATH", "duckdb/spend_sense.duckdb"))
 DEMO_CHASE_CSV = project_path(os.getenv("DEMO_CHASE_CSV", "data/demo/chase_transactions_demo.csv"))
-PRIVATE_CHASE_CSV = project_path(
-    os.getenv("PRIVATE_CHASE_CSV", "data/private/chase_transactions.csv")
-)
+PRIVATE_CHASE_CSV = project_path(os.getenv("PRIVATE_CHASE_CSV", "data/private/chase_transactions.csv"))
 
 
 def private_csv_path() -> Path:
@@ -36,9 +34,7 @@ def private_csv_path() -> Path:
         return PRIVATE_CHASE_CSV
 
     private_dir = PROJECT_ROOT / "data/private"
-    csvs = sorted(
-        path for path in private_dir.glob("*") if path.is_file() and path.suffix.lower() == ".csv"
-    )
+    csvs = sorted(path for path in private_dir.glob("*") if path.is_file() and path.suffix.lower() == ".csv")
     if csvs:
         return max(csvs, key=lambda path: path.stat().st_mtime)
     return PRIVATE_CHASE_CSV
