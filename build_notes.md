@@ -873,3 +873,119 @@ recurring charge = merchant/category/amount pattern
 ```
 
 This would make the project easier to explain and would prevent confusion around whether a merchant can have multiple categories. Yes, a merchant can have multiple transaction categories, but it should have a single merchant identity.
+
+## Interview job links
+
+- Netflix: https://explore.jobs.netflix.net/careers/job/790314349156
+- Cohere: https://jobs.ashbyhq.com/cohere/9baccd88-c051-474f-bfe8-6867fca54cee
+
+## Interview job descriptions loaded
+
+### Netflix — Analytics Engineer 5 - Ad Ranking
+
+Link: https://explore.jobs.netflix.net/careers/job/790314349156
+
+Role focus/context:
+
+- Senior analytics engineering role on Netflix Ads Ranking, a 0-to-1 ads business area.
+- Team powers ad personalization and ads marketplace intelligence.
+- Responsibilities emphasize metrics design, deep-dive analysis, product experiment evaluation, self-service analytics products, data models/pipelines, executive/business-critical dashboards, ad delivery/performance/revenue recommendations, ML model observability/anomaly or drift detection, A/B testing/experiment tracking, innovation with GenAI, and clear stakeholder communication.
+- Qualifications emphasize 5+ years in data engineering/data science/analytics engineering, strong SQL, Python preferred, modern warehouses such as Redshift/BigQuery/Snowflake, data modeling, ETL frameworks, analytics tools, ambiguity tolerance, communication, and ad tech/streaming/consumer-product experience as a plus.
+
+Project relevance:
+
+- SpendSense should emphasize modeled event facts, dimensional merchant/category modeling, metric definitions, denominator rigor, reusable dbt marts, data quality tests, anomaly detection, recurring behavior, dashboarding, and explainable insights.
+- Strong interview framing: “I built the project as an analytics product, not just a dashboard: explicit grain, metric semantics, quality checks, data products, and stakeholder-ready interpretation.”
+
+### Cohere — Data Engineer, Data Foundations
+
+Link: https://jobs.ashbyhq.com/cohere/9baccd88-c051-474f-bfe8-6867fca54cee
+
+Role focus/context:
+
+- Data Engineer role on Cohere's Analytics & Data Insights / Data Foundations area.
+- Cohere builds frontier AI systems for developers and enterprises powering content generation, semantic search, RAG, and agents.
+- Responsibilities emphasize working on new customer experiences built on advanced AI systems, collaborating with researchers/engineers, running implementations end-to-end, and partnering across research, marketing, sales, and finance to influence products and strategy.
+- Qualifications emphasize 5+ years production-grade data processing systems, strong Python and SQL, distributed data processing frameworks such as Apache Beam/Spark/Flink, large-scale data system design, transforming unstructured data into performant datasets in relational DBs and blob storage, modern analytics stack tooling such as BigQuery/Airflow/dbt, Java/Go and Kubernetes as nice-to-haves, genuine AI interest, and comfort operating at the edge of known systems.
+
+Project relevance:
+
+- SpendSense should emphasize production-style Python ingestion, robust SQL/dbt models, AI enrichment cache/provenance, semantic search/RAG-like transaction retrieval, cached embeddings/rerank, unstructured-to-structured transformation, and end-to-end ownership.
+- Strong interview framing: “I treated AI outputs as governed data products: cached, auditable, confidence-scored, precedence-controlled, and measured via coverage/fallback metrics.”
+
+### Pi tutor extension idea
+
+Goal: create a Pi extension that observes development activity and teaches role-relevant Python, data engineering, analytics engineering, and AI/data-governance concepts while coding.
+
+Desired behavior:
+
+- Lightweight “key learnings” or “did you know?” tutoring while building in Pi.
+- Connect concrete code changes/tool activity to interview-relevant concepts for Netflix Analytics Engineering and Cohere Data Foundations.
+- Prioritize Python programming skill development, including idioms, data structures, algorithmic patterns, testing, error handling, performance, and maintainability.
+- Also teach DE/AE concepts: ingestion, idempotency, schema design, dbt model grain, metric definitions, data quality tests, observability, lineage, API retries/rate limits, caching, governance, batch vs streaming, distributed processing analogies, and system design tradeoffs.
+
+Initial implementation direction:
+
+- Build a personal/global Pi extension under `~/.pi/agent/extensions/role-tutor.ts` so it is available while coding without being committed into the SpendSense repo.
+- Use Pi event hooks such as `tool_call`, `tool_result`, `turn_end`, and maybe `before_agent_start`.
+- Use `ctx.ui.setWidget()` for a persistent colored tutor box above or below the editor; use `ctx.ui.notify()` sparingly; optionally use an overlay for `/tutor` deep dives.
+- Register commands such as `/tutor`, `/tutor on`, `/tutor off`, `/tutor focus python|analytics|data-eng|cohere|netflix`, `/tutor recap`, and `/tutor quiz`.
+- Start with deterministic rule-based detection from filenames, commands, and diffs rather than making an LLM call after every action.
+- Later add optional LLM-powered synthesis using current model for richer recaps/quiz questions.
+- Persist lightweight state with `pi.appendEntry()` so the extension remembers concepts surfaced during a session.
+
+## Role Tutor Pi extension MVP
+
+Implemented a personal/global Pi extension outside the SpendSense repo:
+
+```text
+~/.pi/agent/extensions/role-tutor.ts
+```
+
+Repo privacy/organization note: `.pi/` is ignored in this repo so personal Pi extensions/state do not get committed into SpendSense.
+
+Purpose:
+
+- provide ambient interview-oriented tutoring while developing in Pi
+- connect concrete coding activity to Python, data engineering, analytics engineering, Netflix AE, and Cohere DE concepts
+- keep default behavior non-disruptive via a small persistent widget rather than frequent popups
+
+Current features:
+
+- persistent `Role Tutor` widget below the editor via `ctx.ui.setWidget()`
+- footer status indicator showing active tutor focus
+- watches `tool_call` and `tool_result` events for reads/edits/writes/bash commands
+- detects Python edits, dbt/SQL edits, dbt builds/tests, pytest/ruff/compileall, API/retry-related code, dict/loop patterns, docs edits, and search/navigation behavior
+- stores learning events with `pi.appendEntry("role-tutor-learning", ...)`
+- restores recent learning history on session start
+- custom rendered recap messages via `pi.registerMessageRenderer("role-tutor-recap", ...)`
+
+Commands:
+
+```text
+/tutor
+/tutor on
+/tutor off
+/tutor focus balanced
+/tutor focus python
+/tutor focus analytics
+/tutor focus data-eng
+/tutor focus cohere
+/tutor focus netflix
+/tutor recap
+/tutor quiz
+```
+
+Design choices:
+
+- rule-based detection first, to avoid expensive/noisy LLM calls after every action
+- focus modes filter surfaced lessons to match the current interview-prep goal
+- `/tutor recap` and `/tutor quiz` create intentional study moments without interrupting normal coding flow
+
+Next improvements:
+
+- validate the extension in Pi with `/reload`
+- tune widget placement/color after seeing it in the TUI
+- add richer pattern detection from actual edit diffs, not just tool inputs
+- add optional LLM-powered `/tutor deepdive` for a turn-level explanation and role-specific interview answer
+- add spaced repetition / concept frequency tracking
