@@ -434,3 +434,29 @@ Changed in:
 - `src/cohere_client.py`
 
 The Cohere endpoint was reachable; the issue was the deprecated model name, not the URL.
+
+## Merchant Cleanup tab review sections + rate-limit safety
+
+Updated the Merchant Cleanup tab to make enrichment status clearer:
+
+- Default nested tab: `Needs Review`
+- `Cohere Enriched`
+- `Seed Mapped`
+- `All`
+
+This avoids confusion where Cohere-enriched merchants still appeared at the top due to historical review-priority scores.
+
+Also updated `scripts/enrich_merchants.py` for trial-key safety:
+
+- default `COHERE_REQUEST_SLEEP_SECONDS=3.1`, which stays under the documented ~20 chat requests/min trial limit
+- handles HTTP 429 by sleeping and retrying
+- still skips already cached descriptions
+
+To enrich all current uncached review candidates safely, use a high limit with the default sleep:
+
+```bash
+MERCHANT_ENRICHMENT_LIMIT=1000 python scripts/enrich_merchants.py
+cd dbt && dbt build --profiles-dir . && cd ..
+```
+
+Trial keys are documented as limited to about 1,000 API calls/month and 20 chat requests/min for relevant chat models. Since enrichment is cached, repeated runs only process uncached descriptions.

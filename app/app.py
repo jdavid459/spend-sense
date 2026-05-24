@@ -603,6 +603,15 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
             "first_seen",
             "last_seen",
         ]
+        needs_review = review[review["needs_review"]].copy()
+        cohere_enriched = review[review["merchant_source"] == "cohere_cache"].copy()
+        seed_mapped = review[review["merchant_source"] == "seed_rule"].copy()
+
+        def review_table(section_df: pd.DataFrame, empty_message: str):
+            if section_df.empty:
+                return empty_state(empty_message)
+            return table_from_df(section_df, cols, 20)
+
         return dbc.Card(
             dbc.CardBody(
                 [
@@ -613,7 +622,46 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
                         style={"color": MUTED},
                     ),
                     review_cards,
-                    table_from_df(review, cols, 20),
+                    dcc.Tabs(
+                        value="needs_review",
+                        children=[
+                            dcc.Tab(
+                                label=f"Needs Review ({len(needs_review):,})",
+                                value="needs_review",
+                                children=[
+                                    html.Div(
+                                        review_table(needs_review, "No fallback merchants match the current filters."),
+                                        className="pt-3",
+                                    )
+                                ],
+                            ),
+                            dcc.Tab(
+                                label=f"Cohere Enriched ({len(cohere_enriched):,})",
+                                value="cohere",
+                                children=[
+                                    html.Div(
+                                        review_table(cohere_enriched, "No Cohere-enriched merchants yet."),
+                                        className="pt-3",
+                                    )
+                                ],
+                            ),
+                            dcc.Tab(
+                                label=f"Seed Mapped ({len(seed_mapped):,})",
+                                value="seed",
+                                children=[
+                                    html.Div(
+                                        review_table(seed_mapped, "No seed-mapped merchants match the filters."),
+                                        className="pt-3",
+                                    )
+                                ],
+                            ),
+                            dcc.Tab(
+                                label=f"All ({len(review):,})",
+                                value="all",
+                                children=[html.Div(table_from_df(review, cols, 20), className="pt-3")],
+                            ),
+                        ],
+                    ),
                 ]
             ),
             style=CARD_STYLE,

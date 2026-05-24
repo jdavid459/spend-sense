@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -45,7 +46,12 @@ def extract_json(text: str) -> dict[str, Any]:
     return json.loads(text[start : end + 1])
 
 
-def cohere_chat_json(raw_description: str, raw_category: str, model: str) -> dict[str, Any]:
+def cohere_chat_json(
+    raw_description: str,
+    raw_category: str,
+    model: str,
+    max_retries: int = 3,
+) -> dict[str, Any]:
     api_key = os.getenv("COHERE_API_KEY")
     if not api_key:
         raise RuntimeError("COHERE_API_KEY is not configured in .env")
@@ -70,16 +76,26 @@ JSON schema:
 }}
 """.strip()
 
-    response = requests.post(
-        "https://api.cohere.com/v2/chat",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-        },
-        timeout=45,
-    )
+    response = None
+    for attempt in range(max_retries + 1):
+        response = requests.post(
+            "https://api.cohere.com/v2/chat",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.1,
+            },
+            timeout=45,
+        )
+        if response.status_code != 429 or attempt == max_retries:
+            break
+        retry_after = int(response.headers.get("retry-after", "10"))
+        sleep_seconds = max(retry_after, 10 * (attempt + 1))
+        print(f"Rate limited by Cohere; sleeping {sleep_seconds}s before retry...")
+        time.sleep(sleep_seconds)
+
+    assert response is not None
     response.raise_for_status()
     payload = response.json()
     content = payload.get("message", {}).get("content", [])
@@ -113,6 +129,7 @@ def get_candidates(con: duckdb.DuckDBPyConnection, limit: int):
 def main():
     limit = int(os.getenv("MERCHANT_ENRICHMENT_LIMIT", "25"))
     model = os.getenv("COHERE_MODEL", "command-a-03-2025")
+    sleep_seconds = float(os.getenv("COHERE_REQUEST_SLEEP_SECONDS", "3.1"))
 
     with duckdb.connect(str(DUCKDB_PATH)) as con:
         ensure_ai_cache(con)
@@ -148,6 +165,7 @@ def main():
                 print(f"✓ {raw_description} -> {values[1]} / {values[2]} ({values[4]:.2f})")
             except Exception as exc:
                 print(f"✗ Failed to enrich {raw_description!r}: {exc}")
+            time.sleep(sleep_seconds)
 
 
 if __name__ == "__main__":
