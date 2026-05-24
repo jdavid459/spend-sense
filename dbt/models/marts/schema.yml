@@ -20,3 +20,15 @@ models:
     description: Transactions flagged as spend anomalies.
   - name: mart_recurring_spend
     description: Merchant-level recurring spend/subscription candidates.
+  - name: mart_merchant_review
+    description: Merchant normalization review mart used to prioritize seed-rule improvements.
+    columns:
+      - name: raw_description
+        tests:
+          - not_null
+      - name: normalized_merchant
+        tests:
+          - not_null
+      - name: review_priority_score
+        tests:
+          - not_null

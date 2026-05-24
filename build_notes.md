@@ -322,3 +322,40 @@ Recommended next development priorities:
 5. Improve anomaly detection and duplicate charge detection.
 6. Generate a stronger synthetic demo dataset after learning from the real data patterns.
 7. Add deployment support using demo data only.
+
+## Merchant review mart
+
+Added a dbt mart for merchant cleanup prioritization:
+
+```text
+dbt/models/marts/mart_merchant_review.sql
+```
+
+Purpose:
+
+- move merchant-review aggregation out of the Dash app and into dbt
+- identify raw descriptions that still fall back to unmapped/raw merchant names
+- prioritize cleanup candidates using transaction count, spend, and unmapped status
+- provide a governed table that can later feed either manual seed updates or Cohere enrichment
+
+Columns include:
+
+- `raw_description`
+- `normalized_merchant`
+- `merchant_group`
+- `raw_category`
+- `final_category`
+- `transaction_count`
+- `total_spend`
+- `avg_debit_amount`
+- `first_seen`
+- `last_seen`
+- `anomaly_count`
+- `has_recurring_flag`
+- `needs_review`
+- `review_reason`
+- `review_priority_score`
+
+Updated `app/app.py` so the Merchant Cleanup tab reads from `marts.mart_merchant_review` instead of aggregating directly in Python.
+
+Privacy note: did not commit merchant rules derived from the user's private Chase data. The public `merchant_rules.csv` remains generic for now. If we add private-data-derived rules later, use a local/private ignored override or only add non-sensitive generic patterns.
