@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import duckdb
 
-MERCHANT_ENRICHMENT_CACHE_DDL = """
+AI_CACHE_DDL = """
 create schema if not exists ai;
 
 create table if not exists ai.merchant_enrichment_cache (
@@ -15,8 +15,17 @@ create table if not exists ai.merchant_enrichment_cache (
     model varchar,
     created_at timestamp
 );
+
+create table if not exists ai.spend_summary_cache (
+    summary_key varchar primary key,
+    model varchar,
+    filters_json varchar,
+    context_text varchar,
+    response_text varchar,
+    created_at timestamp
+);
 """
 
 
 def ensure_ai_cache(con: duckdb.DuckDBPyConnection) -> None:
-    con.execute(MERCHANT_ENRICHMENT_CACHE_DDL)
+    con.execute(AI_CACHE_DDL)

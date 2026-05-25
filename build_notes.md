@@ -1360,3 +1360,77 @@ Cohere implementation principles to preserve:
 - Deterministic seed rules should take precedence over AI where appropriate.
 - AI coverage/fallback rates should remain first-class metrics.
 - Python should handle API calls/retries/caching, but downstream business semantics should be modeled in dbt.
+
+## Grounded AI Summary upgrade
+
+Implemented the first major remaining Cohere feature: a stronger AI Summary grounded in modeled marts/metrics rather than a loose text dump.
+
+Changes made:
+
+- Added `src/ai_summary.py`
+  - builds a structured summary context from filtered `marts.fct_transactions`
+  - incorporates rolling 30-day comparisons from `marts.mart_daily_metric_values`
+  - includes selected-window spend, recurring, anomaly, merchant-source coverage, top categories/merchants, monthly trend, and example anomalies/recurring merchants
+- Added `ai.spend_summary_cache` in DuckDB via `src/ai_cache.py`
+  - stores summary key, model, filters, prompt context, response text, and timestamp
+- Updated `src/cohere_client.py`
+  - AI summaries now use a stricter grounded prompt
+  - responses are cached in DuckDB for auditability/reuse
+  - HTTP failures return a user-visible message instead of crashing the app
+- Updated `app/app.py`
+  - AI Summary tab now shows grounding KPI cards
+  - summary generation is based on filtered dbt marts + daily metric fact
+  - added a collapsible section showing the exact context sent to Cohere
+
+Validation passed:
+
+```bash
+python -m compileall app src
+.venv/bin/ruff check app src
+```
+
+## AI Summary UX + modularization follow-up
+
+Iterated on the first AI Summary implementation after UI review and real latency testing.
+
+What changed:
+
+- Switched the default experience to an **instant deterministic summary**.
+  - AI is no longer required for the tab to be useful.
+  - The Cohere call now happens only when the user clicks `Generate AI Summary`.
+- Added `app/components/ai_summary.py`.
+  - moved AI Summary tab rendering and callback wiring out of `app/app.py`
+  - makes the feature easier to maintain or remove later
+- Expanded `src/ai_summary.py`.
+  - deterministic summary now drives the default UX
+  - added compact prompt-cue generation separate from the full audit/debug context
+- Kept `src/cohere_client.py` summary caching in DuckDB, keyed by prompt version/model/filters/context.
+- The AI Summary tab now preserves usable content even when Cohere is slow or unavailable.
+
+Latency investigation:
+
+- Local prep is fast (`~0.03s` for filtering + summary-context construction).
+- A trivial Cohere ping (`2+2`) returned successfully in under a second.
+- A compact-context summary request with a simple prompt returned successfully in about `5s`.
+- The heavier instruction-rich production prompt intermittently timed out at `20–30s`.
+
+Current interpretation:
+
+- the bottleneck is not DuckDB/dbt/local Python work
+- the bottleneck appears to be the remote Cohere request, especially when the prompt is overly constrained
+- prompt complexity matters more than raw context size alone
+
+Recommended future follow-up if we want more reliable AI-summary generation:
+
+1. simplify the production prompt further
+2. consider a faster Cohere model if available
+3. optionally add lightweight latency logging around the summary request
+4. keep deterministic summary as the primary UX regardless
+
+Validation after modularization passed:
+
+```bash
+python -m compileall app src
+.venv/bin/ruff check app src
+python app/app.py
+```

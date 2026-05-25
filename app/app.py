@@ -12,7 +12,12 @@ from dash import Input, Output, dash_table, dcc, html
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from src.cohere_client import summarize_spend
+try:
+    from components.ai_summary import register_ai_summary_callbacks, render_ai_summary_tab
+except ImportError:
+    from app.components.ai_summary import register_ai_summary_callbacks, render_ai_summary_tab
+
+from src.ai_summary import filter_daily_metrics
 from src.config import DATA_MODE
 from src.db import query_df
 
@@ -177,6 +182,23 @@ def metric_card(
     )
 
 
+def markdown_summary_card(text: str, title: str | None = None) -> dbc.Card:
+    children = []
+    if title:
+        children.append(html.H5(title, className="mb-3"))
+    children.append(
+        dcc.Markdown(
+            text,
+            style={"fontSize": "17px", "lineHeight": "1.7", "marginBottom": "0"},
+        )
+    )
+    return dbc.Card(
+        dbc.CardBody(children),
+        style=CARD_STYLE | {"background": "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)"},
+        className="mb-4",
+    )
+
+
 def empty_state(message: str) -> dbc.Alert:
     return dbc.Alert(message, color="light", className="border")
 
@@ -241,6 +263,14 @@ metric_group_options = [
     {"label": group, "value": group}
     for group in sorted(daily_metrics.get("metric_group", pd.Series(dtype=str)).dropna().unique())
 ]
+
+register_ai_summary_callbacks(
+    app,
+    daily_metrics=daily_metrics,
+    filter_transactions=filter_transactions,
+    empty_state=empty_state,
+    markdown_summary_card=markdown_summary_card,
+)
 
 app.layout = html.Div(
     style={"backgroundColor": BACKGROUND, "minHeight": "100vh"},
@@ -766,32 +796,19 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
         )
 
     if tab == "ai":
-        metrics = [
-            "Filtered spend summary:",
-            f"Total debit spend: {money(debits['amount_abs'].sum() if not debits.empty else 0)}",
-            f"Transaction count: {len(df)}",
-            "\nTop categories:",
-            debits.groupby("final_category")["amount_abs"].sum().sort_values(ascending=False).head(10).to_string(),
-            "\nTop merchants:",
-            debits.groupby("normalized_merchant")["amount_abs"].sum().sort_values(ascending=False).head(10).to_string(),
-        ]
-        flagged = df[df["is_anomaly"]]
-        if not flagged.empty:
-            metrics += ["\nAnomalies:", flagged.head(10).to_string(index=False)]
-        if not recurring.empty:
-            metrics += ["\nRecurring spend:", recurring.head(10).to_string(index=False)]
-        return dbc.Card(
-            dbc.CardBody(
-                [
-                    html.H4("AI-generated spending summary"),
-                    html.P(
-                        "Grounded in the filtered dbt mart data. Configure COHERE_API_KEY to enable generation.",
-                        style={"color": MUTED},
-                    ),
-                    html.Pre(summarize_spend("\n".join(metrics)), style={"whiteSpace": "pre-wrap"}),
-                ]
-            ),
-            style=CARD_STYLE,
+        return render_ai_summary_tab(
+            df,
+            daily_metrics,
+            start_date,
+            end_date,
+            categories,
+            merchants,
+            view_mode,
+            accent=ACCENT,
+            muted=MUTED,
+            card_style=CARD_STYLE,
+            metric_card=metric_card,
+            markdown_summary_card=markdown_summary_card,
         )
 
     return empty_state("Unknown tab.")
@@ -810,23 +827,7 @@ def render_metrics_content(start_date, end_date, categories, merchants, view_mod
     if daily_metrics.empty:
         return empty_state("Daily metric mart not found. Run dbt build to create marts.mart_daily_metric_values.")
 
-    metrics = daily_metrics.copy()
-    if start_date:
-        metrics = metrics[metrics["metric_date"] >= pd.to_datetime(start_date)]
-    if end_date:
-        metrics = metrics[metrics["metric_date"] <= pd.to_datetime(end_date)]
-    if categories:
-        metrics = metrics[metrics["final_category"].isin(categories)]
-    if merchants:
-        metrics = metrics[metrics["normalized_merchant"].isin(merchants)]
-    if view_mode == "debits":
-        metrics = metrics[~metrics["metric_key"].str.startswith("credit_")]
-    elif view_mode == "credits":
-        metrics = metrics[metrics["metric_key"].str.startswith("credit_")]
-    elif view_mode == "anomalies":
-        metrics = metrics[metrics["metric_key"].str.startswith("anomaly_")]
-    elif view_mode == "recurring":
-        metrics = metrics[metrics["metric_key"].str.startswith("recurring_")]
+    metrics = filter_daily_metrics(daily_metrics, start_date, end_date, categories, merchants, view_mode)
     if metric_groups:
         metrics = metrics[metrics["metric_group"].isin(metric_groups)]
 
