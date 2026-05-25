@@ -1434,3 +1434,94 @@ python -m compileall app src
 .venv/bin/ruff check app src
 python app/app.py
 ```
+
+## Cohere semantic search + merchant profile retrieval
+
+Implemented the next major Cohere roadmap slice: semantic transaction search with embeddings, rerank, and a governed merchant-profile layer.
+
+What changed:
+
+- Added `src/semantic_search.py`
+  - builds searchable transaction text from `marts.fct_transactions`
+  - caches transaction embeddings in DuckDB
+  - caches query embeddings and rerank results in DuckDB
+  - uses Cohere embeddings for recall and Cohere Rerank for precision
+  - applies confidence gating so weak matches are hidden instead of shown
+- Added `app/components/semantic_search.py`
+  - isolated the search UI/callback logic from `app/app.py`
+  - moved the experience into the `Transactions` tab instead of a separate AI tab
+  - search runs live after a short typing pause and only affects the transactions table
+- Added `scripts/backfill_transaction_embeddings.py`
+  - precomputes transaction embeddings for faster repeated searches/demo runs
+- Expanded `src/ai_cache.py`
+  - added `ai.transaction_embedding_cache`
+  - added `ai.search_query_cache`
+  - added `ai.search_rerank_cache`
+- Added `src/merchant_profiles.py`
+  - creates a governed semantic profile per normalized merchant using Cohere chat
+  - stores merchant summary + semantic tags in DuckDB
+  - loads those cached profiles into search text at runtime for stronger recall
+- Added `scripts/backfill_merchant_profiles.py`
+  - backfills merchant profiles in batches
+  - falls back to one-by-one merchant generation only if a merchant is missing from a batch response
+
+Why the merchant-profile layer was added:
+
+- embeddings over raw transaction text alone were not always enough for intent-style queries like `movie`
+- a merchant such as `AMC` may not contain enough descriptive raw text in every row for reliable direct retrieval
+- the better pattern is to enrich merchants once, cache that governed semantic profile, and let search use both raw facts and entity-level semantics
+- this is more interview-relevant and closer to how a real data/AI pipeline would separate offline enrichment from online retrieval
+
+Implementation decisions:
+
+- avoided merchant-specific hardcoding like `AMC -> movie theater`
+- kept retrieval auditable by storing semantic profiles in DuckDB
+- used a Python dictionary only as an in-memory lookup over the cached merchant-profile table during app runtime
+- kept the global dashboard filters deterministic; semantic search only changes the transactions view
+- switched merchant-profile generation from one-request-per-merchant to batched requests
+
+Backfill / coverage status:
+
+- transaction embeddings were backfilled for all modeled transactions
+- merchant semantic profiles were backfilled for all normalized merchants
+- final merchant-profile coverage reached `114 / 114` merchants
+- batch run summary:
+  - `inserted=36`
+  - `skipped=78`
+  - `failed=0`
+  - `batch_calls=4`
+  - `fallback_calls=10`
+
+Observed search behavior after the merchant-profile layer:
+
+- `coffee` returns coffee/cafe merchants cleanly
+- `health` returns healthcare/wellness merchants cleanly
+- `movie` now returns `AMC` / `AMC Theatres` without hardcoding those names into the search logic
+
+Validation:
+
+```bash
+python -m compileall app src scripts
+.venv/bin/ruff check app src scripts
+python scripts/backfill_transaction_embeddings.py
+python scripts/backfill_merchant_profiles.py
+python app/app.py
+```
+
+Git commit created for the semantic-search feature:
+
+```text
+Add Cohere semantic transaction search with merchant profiles
+```
+
+## Dashboard chart polish follow-up
+
+Made a small UX polish pass on charts after review:
+
+- `Top merchants by spend`
+  - added value labels at the end of bars
+- `Estimated monthly recurring spend`
+  - added value labels at the end of bars
+  - ensured the chart reads largest-at-top to smallest-at-bottom
+
+This was intentionally kept as a separate small follow-up after the larger semantic-search implementation so the feature work and UI polish stay easy to explain independently.

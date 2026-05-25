@@ -509,6 +509,7 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
             .sort_values("amount_abs", ascending=False)
             .head(15)
         )
+        merchant_spend["spend_label"] = merchant_spend["amount_abs"].map(lambda value: f"${value:,.0f}")
         daily = debits.groupby("transaction_date", as_index=False)["amount_abs"].sum()
 
         labels = {
@@ -539,6 +540,7 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
             x="amount_abs",
             y="normalized_merchant",
             orientation="h",
+            text="spend_label",
             title="Top merchants by spend",
             labels=labels,
         )
@@ -550,6 +552,7 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
         fig_month.update_yaxes(tickprefix="$", separatethousands=True)
         fig_merchants.update_xaxes(tickprefix="$", separatethousands=True)
         fig_merchants.update_yaxes(tickprefix="")
+        fig_merchants.update_traces(textposition="outside", cliponaxis=False)
 
         return dbc.Row(
             [
@@ -611,14 +614,20 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
         recurring_filtered = recurring[recurring["normalized_merchant"].isin(filtered_merchants)].copy()
         if recurring_filtered.empty:
             return empty_state("No recurring transactions match the current filters.")
+        recurring_filtered = recurring_filtered.sort_values("estimated_monthly_cost", ascending=False)
+        recurring_plot = recurring_filtered.sort_values("estimated_monthly_cost", ascending=True).copy()
+        recurring_plot["cost_label"] = recurring_plot["estimated_monthly_cost"].map(lambda value: f"${value:,.0f}")
         fig = px.bar(
-            recurring_filtered,
+            recurring_plot,
             x="estimated_monthly_cost",
             y="normalized_merchant",
             orientation="h",
+            text="cost_label",
             title="Estimated monthly recurring spend",
         )
-        fig.update_layout(template="plotly_white", margin=dict(l=30, r=20, t=60, b=30))
+        fig.update_layout(template="plotly_white", margin=dict(l=30, r=40, t=60, b=30))
+        fig.update_xaxes(tickprefix="$", separatethousands=True)
+        fig.update_traces(textposition="outside", cliponaxis=False)
         cols = [
             "normalized_merchant",
             "final_category",
