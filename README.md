@@ -10,6 +10,12 @@ AI-assisted spend analytics from a Chase credit card CSV.
 - Dash + Plotly
 - Cohere API
 
+## Documentation
+
+- HTML system guide: `docs/spendsense_system_breakdown.html`
+- Markdown system guide: `docs/spendsense_system_breakdown.md`
+- Build log / implementation notes: `build_notes.md`
+
 ## Local setup
 
 ```bash

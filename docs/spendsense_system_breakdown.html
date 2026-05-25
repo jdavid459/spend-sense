@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SpendSense System Breakdown</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #e2e8f0;
+      --blue: #2563eb;
+      --green: #16a34a;
+      --purple: #7c3aed;
+      --orange: #ea580c;
+      --red: #dc2626;
+      --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #eff6ff 0%, #ffffff 45%, #f8fafc 100%);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--blue);
+      background: #dbeafe;
+      padding: 6px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+
+    h1, h2, h3 { line-height: 1.2; margin-top: 0; }
+    h1 { font-size: 40px; margin-bottom: 12px; }
+    h2 { font-size: 28px; margin-bottom: 14px; }
+    h3 { font-size: 20px; margin-bottom: 10px; }
+    p, li { color: var(--muted); }
+
+    .subtitle {
+      font-size: 18px;
+      max-width: 900px;
+      margin-bottom: 20px;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: white;
+      font-weight: 600;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+    }
+
+    .toc, .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .toc ol {
+      margin: 0;
+      padding-left: 20px;
+      columns: 2;
+      column-gap: 32px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+    .mini-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      background: #fff;
+    }
+
+    .mini-card h3 { margin-bottom: 8px; }
+
+    .callout {
+      border-left: 5px solid var(--blue);
+      background: #eff6ff;
+      padding: 14px 16px;
+      border-radius: 12px;
+      color: #1e3a8a;
+      margin: 16px 0;
+    }
+
+    .callout.green { border-left-color: var(--green); background: #f0fdf4; color: #166534; }
+    .callout.purple { border-left-color: var(--purple); background: #f5f3ff; color: #5b21b6; }
+    .callout.orange { border-left-color: var(--orange); background: #fff7ed; color: #9a3412; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      align-items: stretch;
+      margin-top: 18px;
+    }
+
+    .flow-step {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      background: white;
+      position: relative;
+      min-height: 140px;
+    }
+
+    .diagram-wrap {
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 18px;
+      margin-bottom: 18px;
+      overflow-x: auto;
+    }
+
+    .diagram-caption {
+      font-size: 14px;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+
+    .interview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .step-tag {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--blue);
+      margin-bottom: 8px;
+    }
+
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px;
+      border-radius: 16px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      color: var(--text);
+      background: #f8fafc;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+
+    .pill.blue { background: #dbeafe; color: #1d4ed8; }
+    .pill.green { background: #dcfce7; color: #15803d; }
+    .pill.purple { background: #ede9fe; color: #6d28d9; }
+    .pill.orange { background: #ffedd5; color: #c2410c; }
+    .pill.red { background: #fee2e2; color: #b91c1c; }
+
+    .repo-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .repo-list li {
+      padding: 12px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .repo-list li:first-child { border-top: 0; }
+
+    .footer-note {
+      text-align: center;
+      color: var(--muted);
+      margin-top: 32px;
+      font-size: 14px;
+    }
+
+    @media (max-width: 800px) {
+      .toc ol { columns: 1; }
+      h1 { font-size: 32px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="eyebrow">Portfolio-ready SpendSense walkthrough</div>
+      <h1>SpendSense: system breakdown, setup guide, and architecture tutorial</h1>
+      <p class="subtitle">
+        SpendSense is a personal spend analytics project built to show strong <strong>analytics engineering</strong>,
+        <strong>data engineering</strong>, and <strong>applied AI</strong> fundamentals. It takes raw Chase CSV data,
+        models it in dbt on top of DuckDB, serves analytics through Dash, and uses Cohere for enrichment, search,
+        and grounded summaries. The project is intentionally designed to be easy to explain in interviews because the
+        layers, ownership boundaries, and metric definitions are explicit.
+      </p>
+      <div>
+        <span class="pill blue">Python</span>
+        <span class="pill green">DuckDB</span>
+        <span class="pill purple">dbt</span>
+        <span class="pill orange">Dash + Plotly</span>
+        <span class="pill red">Cohere</span>
+      </div>
+      <div class="button-row">
+        <a class="button" href="https://github.com/jdavid459/spend-sense" target="_blank" rel="noreferrer">Open GitHub repo</a>
+        <a class="button" href="https://github.com/jdavid459/spend-sense/blob/main/README.md" target="_blank" rel="noreferrer">Open README</a>
+        <a class="button" href="https://github.com/jdavid459/spend-sense/blob/main/build_notes.md" target="_blank" rel="noreferrer">Open build notes</a>
+        <a class="button" href="https://github.com/jdavid459/spend-sense/blob/main/docs/spendsense_system_breakdown.md" target="_blank" rel="noreferrer">Open Markdown guide</a>
+      </div>
+      <div class="callout purple">
+        <strong>Best short framing:</strong> SpendSense is an end-to-end analytics product that starts with raw financial events,
+        models them into governed metrics with dbt, and layers AI features on top in a controlled, auditable way.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Why this project reads well in interviews</h2>
+      <div class="interview-grid">
+        <div class="mini-card">
+          <h3>Analytics engineering</h3>
+          <p>Clear grains, reusable marts, explicit denominators, rolling windows, and data quality coverage.</p>
+        </div>
+        <div class="mini-card">
+          <h3>Data engineering</h3>
+          <p>Mode-aware ingestion, DuckDB storage, deterministic reloads, and cache-backed AI backfills.</p>
+        </div>
+        <div class="mini-card">
+          <h3>Applied AI governance</h3>
+          <p>AI outputs are cached, confidence-scored, provenance-tagged, and kept below deterministic rules.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="toc">
+      <h2>Table of contents</h2>
+      <ol>
+        <li><a href="#what-it-is">What SpendSense is</a></li>
+        <li><a href="#quick-setup">Quick setup</a></li>
+        <li><a href="#architecture">End-to-end architecture</a></li>
+        <li><a href="#pipeline">How the pipeline works</a></li>
+        <li><a href="#dbt">How dbt is used</a></li>
+        <li><a href="#data-model">How the data is modeled</a></li>
+        <li><a href="#python-dash">How data flows into Python and Dash</a></li>
+        <li><a href="#cohere">How Cohere is used</a></li>
+        <li><a href="#skills">Skillset this project showcases</a></li>
+        <li><a href="#repo-map">Relevant repo files and folders</a></li>
+      </ol>
+    </section>
+
+    <section id="what-it-is" class="card">
+      <h2>1) What SpendSense is</h2>
+      <div class="grid grid-3">
+        <div class="mini-card">
+          <h3>Input</h3>
+          <p>Raw Chase credit card CSVs in either <strong>demo</strong> or <strong>private</strong> mode.</p>
+        </div>
+        <div class="mini-card">
+          <h3>Core engine</h3>
+          <p>Python ingests the CSV into <strong>DuckDB</strong>, then <strong>dbt</strong> transforms it into analytics-ready models.</p>
+        </div>
+        <div class="mini-card">
+          <h3>User experience</h3>
+          <p>A <strong>Dash</strong> app reads the modeled marts and adds AI-powered search and summaries.</p>
+        </div>
+      </div>
+      <div class="callout green">
+        <strong>Main idea:</strong> this is not just a dashboard. It is a small analytics product with ingestion, modeling,
+        governed marts, metric definitions, and AI features layered on top.
+      </div>
+    </section>
+
+    <section id="quick-setup" class="card">
+      <h2>2) Quick setup</h2>
+      <p>Use this path if you want to reproduce the project locally.</p>
+      <pre>python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+
+# Optional: generate demo data
+python scripts/generate_demo_data.py
+
+# Load CSV into DuckDB raw table
+python scripts/ingest_chase_csv.py
+
+# Build dbt models
+cd dbt && dbt deps --profiles-dir . && dbt build --profiles-dir .
+cd ..
+
+# Launch dashboard
+python app/app.py</pre>
+      <div class="grid grid-2">
+        <div class="mini-card">
+          <h3>Demo mode</h3>
+          <p>Safe for sharing. Uses the synthetic CSV at <code>data/demo/chase_transactions_demo.csv</code>.</p>
+        </div>
+        <div class="mini-card">
+          <h3>Private mode</h3>
+          <p>Uses a local Chase export in <code>data/private/</code>. Private files are gitignored.</p>
+        </div>
+      </div>
+      <p>
+        Key config lives in
+        <a href="https://github.com/jdavid459/spend-sense/blob/main/.env.example" target="_blank" rel="noreferrer">.env.example</a>
+        and
+        <a href="https://github.com/jdavid459/spend-sense/blob/main/src/config.py" target="_blank" rel="noreferrer">src/config.py</a>.
+      </p>
+    </section>
+
+    <section id="architecture" class="card">
+      <h2>3) End-to-end architecture</h2>
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 1120 250" width="100%" role="img" aria-label="SpendSense architecture diagram">
+          <defs>
+            <linearGradient id="blueBox" x1="0" x2="1">
+              <stop offset="0%" stop-color="#dbeafe" />
+              <stop offset="100%" stop-color="#eff6ff" />
+            </linearGradient>
+            <linearGradient id="greenBox" x1="0" x2="1">
+              <stop offset="0%" stop-color="#dcfce7" />
+              <stop offset="100%" stop-color="#f0fdf4" />
+            </linearGradient>
+            <linearGradient id="purpleBox" x1="0" x2="1">
+              <stop offset="0%" stop-color="#ede9fe" />
+              <stop offset="100%" stop-color="#f5f3ff" />
+            </linearGradient>
+            <linearGradient id="orangeBox" x1="0" x2="1">
+              <stop offset="0%" stop-color="#ffedd5" />
+              <stop offset="100%" stop-color="#fff7ed" />
+            </linearGradient>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"></path>
+            </marker>
+          </defs>
+          <rect x="20" y="70" rx="18" ry="18" width="160" height="100" fill="url(#blueBox)" stroke="#93c5fd" />
+          <text x="100" y="102" text-anchor="middle" font-size="18" font-weight="700" fill="#1e3a8a">📄 CSV input</text>
+          <text x="100" y="128" text-anchor="middle" font-size="14" fill="#334155">demo or private</text>
+          <text x="100" y="148" text-anchor="middle" font-size="14" fill="#334155">Chase export</text>
+
+          <rect x="205" y="70" rx="18" ry="18" width="160" height="100" fill="url(#greenBox)" stroke="#86efac" />
+          <text x="285" y="102" text-anchor="middle" font-size="18" font-weight="700" fill="#166534">🐍 Python</text>
+          <text x="285" y="128" text-anchor="middle" font-size="14" fill="#334155">ingestion + cache</text>
+          <text x="285" y="148" text-anchor="middle" font-size="14" fill="#334155">scripts</text>
+
+          <rect x="390" y="70" rx="18" ry="18" width="160" height="100" fill="url(#greenBox)" stroke="#86efac" />
+          <text x="470" y="102" text-anchor="middle" font-size="18" font-weight="700" fill="#166534">🦆 DuckDB</text>
+          <text x="470" y="128" text-anchor="middle" font-size="14" fill="#334155">raw + marts + ai</text>
+          <text x="470" y="148" text-anchor="middle" font-size="14" fill="#334155">local warehouse</text>
+
+          <rect x="575" y="70" rx="18" ry="18" width="160" height="100" fill="url(#purpleBox)" stroke="#c4b5fd" />
+          <text x="655" y="102" text-anchor="middle" font-size="18" font-weight="700" fill="#5b21b6">🧱 dbt</text>
+          <text x="655" y="128" text-anchor="middle" font-size="14" fill="#334155">staging → intermediate</text>
+          <text x="655" y="148" text-anchor="middle" font-size="14" fill="#334155">→ marts</text>
+
+          <rect x="760" y="70" rx="18" ry="18" width="160" height="100" fill="url(#orangeBox)" stroke="#fdba74" />
+          <text x="840" y="102" text-anchor="middle" font-size="18" font-weight="700" fill="#9a3412">📊 Dash</text>
+          <text x="840" y="128" text-anchor="middle" font-size="14" fill="#334155">KPIs, charts, tables</text>
+          <text x="840" y="148" text-anchor="middle" font-size="14" fill="#334155">interactive app</text>
+
+          <rect x="945" y="45" rx="18" ry="18" width="155" height="70" fill="#fee2e2" stroke="#fca5a5" />
+          <text x="1022.5" y="75" text-anchor="middle" font-size="18" font-weight="700" fill="#991b1b">🤖 Cohere</text>
+          <text x="1022.5" y="97" text-anchor="middle" font-size="14" fill="#334155">Chat summaries</text>
+
+          <rect x="945" y="125" rx="18" ry="18" width="155" height="70" fill="#fee2e2" stroke="#fca5a5" />
+          <text x="1022.5" y="155" text-anchor="middle" font-size="18" font-weight="700" fill="#991b1b">🔎 Search AI</text>
+          <text x="1022.5" y="177" text-anchor="middle" font-size="14" fill="#334155">Embed + Rerank</text>
+
+          <line x1="180" y1="120" x2="205" y2="120" stroke="#94a3b8" stroke-width="3" marker-end="url(#arrow)" />
+          <line x1="365" y1="120" x2="390" y2="120" stroke="#94a3b8" stroke-width="3" marker-end="url(#arrow)" />
+          <line x1="550" y1="120" x2="575" y2="120" stroke="#94a3b8" stroke-width="3" marker-end="url(#arrow)" />
+          <line x1="735" y1="120" x2="760" y2="120" stroke="#94a3b8" stroke-width="3" marker-end="url(#arrow)" />
+          <line x1="920" y1="95" x2="945" y2="80" stroke="#94a3b8" stroke-width="3" marker-end="url(#arrow)" />
+          <line x1="920" y1="145" x2="945" y2="160" stroke="#94a3b8" stroke-width="3" marker-end="url(#arrow)" />
+        </svg>
+        <div class="diagram-caption">
+          SpendSense separates <strong>deterministic analytics engineering</strong> from <strong>AI enhancement</strong>.
+          dbt owns the core business logic; Cohere adds enrichment, retrieval, and narrative layers on top.
+        </div>
+      </div>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="step-tag">Step 1</div>
+          <h3>Source data</h3>
+          <p>Chase CSV or synthetic demo CSV.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-tag">Step 2</div>
+          <h3>Python ingestion</h3>
+          <p>Loads rows into <code>raw.chase_transactions</code> in DuckDB.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-tag">Step 3</div>
+          <h3>dbt transforms</h3>
+          <p>Builds staging, intermediate, and mart layers.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-tag">Step 4</div>
+          <h3>Analytics layer</h3>
+          <p>Reusable transaction facts, recurring detection, anomalies, KPI marts, and metrics.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-tag">Step 5</div>
+          <h3>Dash app</h3>
+          <p>Reads dbt marts into an interactive dashboard.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-tag">Step 6</div>
+          <h3>Cohere services</h3>
+          <p>Merchant enrichment, grounded summaries, embeddings, rerank, and merchant semantic profiles.</p>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>Design philosophy:</strong> most business logic lives in <strong>dbt/SQL</strong>. Python stays thinner and handles
+        ingestion, app behavior, and AI API workflows.
+      </div>
+    </section>
+
+    <section id="pipeline" class="card">
+      <h2>4) How the pipeline works</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Stage</th>
+            <th>What happens</th>
+            <th>Relevant files</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Input selection</strong></td>
+            <td>
+              The app decides whether to use demo or private data, and private mode can auto-detect the latest CSV.
+            </td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/src/config.py" target="_blank" rel="noreferrer">src/config.py</a>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Demo generation</strong></td>
+            <td>
+              Synthetic data is generated with recurring charges, anomalies, inconsistent merchants, and duplicates.
+            </td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/scripts/generate_demo_data.py" target="_blank" rel="noreferrer">scripts/generate_demo_data.py</a>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Ingestion</strong></td>
+            <td>
+              Python validates expected Chase columns, adds lineage fields like source row number and row hash, then loads the raw table into DuckDB.
+            </td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/scripts/ingest_chase_csv.py" target="_blank" rel="noreferrer">scripts/ingest_chase_csv.py</a>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>dbt build</strong></td>
+            <td>
+              dbt transforms the raw table into clean staging models, feature models, and business-facing marts.
+            </td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/tree/main/dbt" target="_blank" rel="noreferrer">dbt/</a>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Dashboard load</strong></td>
+            <td>
+              Dash queries the marts from DuckDB and applies filters for date, category, merchant, and view mode.
+            </td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/app/app.py" target="_blank" rel="noreferrer">app/app.py</a>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>AI layer</strong></td>
+            <td>
+              Cohere calls enrich merchants, generate summaries, and power semantic transaction search. Results are cached in DuckDB.
+            </td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/tree/main/src" target="_blank" rel="noreferrer">src/</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="dbt" class="card">
+      <h2>5) How dbt is used</h2>
+      <p>dbt is the modeling backbone of SpendSense.</p>
+      <div class="grid grid-2">
+        <div class="mini-card">
+          <h3>Project structure</h3>
+          <p>
+            dbt is configured with separate <strong>staging</strong>, <strong>intermediate</strong>, and <strong>marts</strong>
+            schemas to make the pipeline easy to explain.
+          </p>
+          <p>
+            See:
+            <a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/dbt_project.yml" target="_blank" rel="noreferrer">dbt/dbt_project.yml</a>,
+            <a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/profiles.yml" target="_blank" rel="noreferrer">dbt/profiles.yml</a>,
+            <a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/macros/generate_schema_name.sql" target="_blank" rel="noreferrer">generate_schema_name.sql</a>
+          </p>
+        </div>
+        <div class="mini-card">
+          <h3>Why it matters</h3>
+          <p>
+            dbt makes the transformation layer versioned, testable, documented, and reusable outside the dashboard.
+          </p>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Purpose</th>
+            <th>Examples</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Staging</strong></td>
+            <td>Standardize raw Chase fields and prepare clean transaction columns.</td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/staging/stg_chase_transactions.sql" target="_blank" rel="noreferrer">stg_chase_transactions.sql</a>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Intermediate</strong></td>
+            <td>Apply merchant normalization, enrichment precedence, and transaction-level features.</td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/intermediate/int_merchant_normalization.sql" target="_blank" rel="noreferrer">int_merchant_normalization.sql</a><br />
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/intermediate/int_transaction_features.sql" target="_blank" rel="noreferrer">int_transaction_features.sql</a><br />
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/intermediate/int_recurring_transactions.sql" target="_blank" rel="noreferrer">int_recurring_transactions.sql</a>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Marts</strong></td>
+            <td>Expose dashboard-ready facts, metrics, anomaly marts, recurring marts, and data quality outputs.</td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/tree/main/dbt/models/marts" target="_blank" rel="noreferrer">dbt/models/marts/</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout purple">
+        <strong>Analytics engineering highlight:</strong> the project explicitly models denominator choices.
+        Spend shares are based on <strong>debit spend</strong>, while credits/payments are separated so metrics stay correct.
+      </div>
+    </section>
+
+    <section id="data-model" class="card">
+      <h2>6) How the data is modeled</h2>
+      <h3>Core model flow</h3>
+      <pre>raw.chase_transactions
+  -> staging.stg_chase_transactions
+  -> intermediate.int_merchant_normalization
+  -> intermediate.int_transaction_features
+  -> intermediate.int_recurring_transactions
+  -> marts.fct_transactions
+  -> marts for anomalies, recurring, merchant review, KPIs, and daily metrics</pre>
+
+      <h3>Main model grains</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Grain</th>
+            <th>Why it exists</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/staging/stg_chase_transactions.sql" target="_blank" rel="noreferrer">stg_chase_transactions</a></td>
+            <td>One row per raw CSV transaction</td>
+            <td>Standardized dates, amount fields, debit/credit flags, and transaction ID.</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/intermediate/int_merchant_normalization.sql" target="_blank" rel="noreferrer">int_merchant_normalization</a></td>
+            <td>One row per transaction</td>
+            <td>Determines normalized merchant, merchant group, category source, AI confidence, and provenance.</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/intermediate/int_transaction_features.sql" target="_blank" rel="noreferrer">int_transaction_features</a></td>
+            <td>One row per transaction</td>
+            <td>Adds z-scores, merchant/category comparisons, and spacing between transactions.</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/marts/fct_transactions.sql" target="_blank" rel="noreferrer">fct_transactions</a></td>
+            <td>One row per transaction</td>
+            <td>Final fact table consumed by the app.</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/marts/mart_merchant_review.sql" target="_blank" rel="noreferrer">mart_merchant_review</a></td>
+            <td>One row per raw description / merchant combination</td>
+            <td>Prioritizes cleanup candidates and shows what still needs governed mapping.</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/marts/mart_daily_metric_values.sql" target="_blank" rel="noreferrer">mart_daily_metric_values</a></td>
+            <td>One row per metric x day x filterable dimensions</td>
+            <td>Supports rolling 30-day metric views in the dashboard.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Merchant normalization logic</h3>
+      <p>SpendSense uses a clear precedence rule:</p>
+      <pre>seed rule > Cohere cache (confidence >= 0.70) > raw fallback</pre>
+      <p>
+        This is strong from a governance perspective because AI does not silently override deterministic logic.
+        The source of each classification is preserved using <code>merchant_source</code> and <code>category_source</code>.
+      </p>
+
+      <h3>Metric modeling</h3>
+      <p>Important marts include:</p>
+      <ul>
+        <li><a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/marts/mart_spend_kpis.sql" target="_blank" rel="noreferrer">mart_spend_kpis.sql</a></li>
+        <li><a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/marts/mart_monthly_kpis.sql" target="_blank" rel="noreferrer">mart_monthly_kpis.sql</a></li>
+        <li><a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/marts/mart_category_metrics.sql" target="_blank" rel="noreferrer">mart_category_metrics.sql</a></li>
+        <li><a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/marts/mart_data_quality.sql" target="_blank" rel="noreferrer">mart_data_quality.sql</a></li>
+        <li><a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/models/marts/mart_metric_summary.sql" target="_blank" rel="noreferrer">mart_metric_summary.sql</a></li>
+      </ul>
+      <div class="callout orange">
+        <strong>Analytics engineering highlight:</strong> this metrics layer is interview-relevant because it shows reusable marts,
+        rolling windows, concentration metrics, volatility, anomaly exposure, and AI coverage tracking.
+      </div>
+    </section>
+
+    <section id="python-dash" class="card">
+      <h2>7) How data flows into Python and Dash</h2>
+      <div class="grid grid-2">
+        <div class="mini-card">
+          <h3>DuckDB access</h3>
+          <p>
+            <a href="https://github.com/jdavid459/spend-sense/blob/main/src/db.py" target="_blank" rel="noreferrer">src/db.py</a>
+            provides a simple query helper that reads modeled tables from DuckDB into pandas DataFrames.
+          </p>
+        </div>
+        <div class="mini-card">
+          <h3>App orchestration</h3>
+          <p>
+            <a href="https://github.com/jdavid459/spend-sense/blob/main/app/app.py" target="_blank" rel="noreferrer">app/app.py</a>
+            loads marts, applies filters, builds KPI cards, and renders tabs for overview, anomalies, recurring, metrics, merchant cleanup, and AI summary.
+          </p>
+        </div>
+      </div>
+
+      <h3>How the app uses the modeled data</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Dashboard area</th>
+            <th>Main source</th>
+            <th>Why this is useful</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Overview</td>
+            <td><code>marts.fct_transactions</code></td>
+            <td>Flexible filtered charts across time, categories, merchants, and spend behavior.</td>
+          </tr>
+          <tr>
+            <td>Transactions</td>
+            <td><code>marts.fct_transactions</code></td>
+            <td>Base transaction table plus semantic search.</td>
+          </tr>
+          <tr>
+            <td>Anomalies</td>
+            <td><code>marts.mart_anomalies</code> and filtered fact data</td>
+            <td>Explainable outlier review.</td>
+          </tr>
+          <tr>
+            <td>Recurring</td>
+            <td><code>marts.mart_recurring_spend</code></td>
+            <td>Subscription/recurring burden analysis.</td>
+          </tr>
+          <tr>
+            <td>Metrics</td>
+            <td><code>marts.mart_daily_metric_values</code></td>
+            <td>Filterable rolling 30-day metrics with trend lines.</td>
+          </tr>
+          <tr>
+            <td>Merchant Cleanup</td>
+            <td><code>marts.mart_merchant_review</code></td>
+            <td>Operationalizes cleanup work as a governed analytics artifact.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        The app also splits more specialized logic into components:
+        <a href="https://github.com/jdavid459/spend-sense/blob/main/app/components/ai_summary.py" target="_blank" rel="noreferrer">app/components/ai_summary.py</a>
+        and
+        <a href="https://github.com/jdavid459/spend-sense/blob/main/app/components/semantic_search.py" target="_blank" rel="noreferrer">app/components/semantic_search.py</a>.
+      </p>
+    </section>
+
+    <section id="cohere" class="card">
+      <h2>8) How Cohere is used</h2>
+      <p>SpendSense uses Cohere in multiple ways, not just one feature.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Cohere product</th>
+            <th>Used for</th>
+            <th>Relevant code</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Chat</strong></td>
+            <td>Merchant enrichment, merchant semantic profiles, and grounded spend summaries.</td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/scripts/enrich_merchants.py" target="_blank" rel="noreferrer">scripts/enrich_merchants.py</a><br />
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/src/merchant_profiles.py" target="_blank" rel="noreferrer">src/merchant_profiles.py</a><br />
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/src/cohere_client.py" target="_blank" rel="noreferrer">src/cohere_client.py</a>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Embed</strong></td>
+            <td>Semantic transaction search using vector embeddings.</td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/src/semantic_search.py" target="_blank" rel="noreferrer">src/semantic_search.py</a><br />
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/scripts/backfill_transaction_embeddings.py" target="_blank" rel="noreferrer">scripts/backfill_transaction_embeddings.py</a>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Rerank</strong></td>
+            <td>Improves search precision after semantic retrieval.</td>
+            <td>
+              <a href="https://github.com/jdavid459/spend-sense/blob/main/src/semantic_search.py" target="_blank" rel="noreferrer">src/semantic_search.py</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Cohere usage patterns in the system</h3>
+      <div class="grid grid-2">
+        <div class="mini-card">
+          <h3>1. Merchant enrichment</h3>
+          <p>
+            Unmapped raw descriptions are sent to Cohere Chat for suggested merchant name, category, merchant group,
+            confidence, and reasoning. The result lands in <code>ai.merchant_enrichment_cache</code>.
+          </p>
+        </div>
+        <div class="mini-card">
+          <h3>2. AI summary</h3>
+          <p>
+            The summary tab first shows a deterministic summary, then optionally calls Cohere for a more natural write-up
+            grounded in dbt metrics and filtered transactions.
+          </p>
+        </div>
+        <div class="mini-card">
+          <h3>3. Merchant semantic profiles</h3>
+          <p>
+            Cohere Chat creates reusable merchant summaries and semantic tags, which improves retrieval quality for search.
+          </p>
+        </div>
+        <div class="mini-card">
+          <h3>4. Semantic search</h3>
+          <p>
+            Transactions are embedded, a query is embedded, similarity is scored, then Cohere Rerank improves final result quality.
+          </p>
+        </div>
+      </div>
+
+      <h3>AI governance pattern</h3>
+      <p>One of the strongest parts of this design is that AI outputs are treated as data products:</p>
+      <ul>
+        <li>cached in DuckDB</li>
+        <li>confidence-scored</li>
+        <li>auditable</li>
+        <li>precedence-controlled</li>
+        <li>measured through coverage and fallback metrics</li>
+      </ul>
+      <p>
+        Cache definitions live in
+        <a href="https://github.com/jdavid459/spend-sense/blob/main/src/ai_cache.py" target="_blank" rel="noreferrer">src/ai_cache.py</a>.
+      </p>
+    </section>
+
+    <section id="skills" class="card">
+      <h2>9) Skillset this project showcases</h2>
+      <div class="callout purple">
+        <strong>Simple portfolio read:</strong> this project shows how to move from raw events to business metrics,
+        then from business metrics to AI-assisted user experiences without losing traceability.
+      </div>
+      <div class="grid grid-2">
+        <div class="mini-card">
+          <h3>Analytics engineering</h3>
+          <ul>
+            <li>clear model layering in dbt</li>
+            <li>fact and mart design</li>
+            <li>metric definitions and denominator rigor</li>
+            <li>rolling window metrics</li>
+            <li>data quality and provenance coverage</li>
+            <li>dbt tests and reusable artifacts</li>
+          </ul>
+        </div>
+        <div class="mini-card">
+          <h3>Data engineering</h3>
+          <ul>
+            <li>CSV ingestion into DuckDB</li>
+            <li>mode-aware configuration and file detection</li>
+            <li>idempotent raw reload pattern</li>
+            <li>API retry and rate-limit handling</li>
+            <li>cache tables for AI workflows</li>
+            <li>backfill scripts for offline preparation</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout green">
+        <strong>Best interview framing:</strong> SpendSense is a compact example of building an analytics product end to end:
+        ingestion, transformation, metric design, governed AI enrichment, and stakeholder-friendly presentation.
+      </div>
+      <h3>Sample talking points</h3>
+      <ul>
+        <li><strong>For analytics engineering:</strong> “I modeled transactions as a reusable fact table and pushed business definitions into dbt so the dashboard stayed thin.”</li>
+        <li><strong>For data engineering:</strong> “I used Python for ingestion and API orchestration, DuckDB as the local warehouse, and cache tables to make AI workflows repeatable.”</li>
+        <li><strong>For AI/data governance:</strong> “Cohere outputs are cached, confidence-scored, and precedence-controlled rather than directly overwriting deterministic rules.”</li>
+      </ul>
+    </section>
+
+    <section id="repo-map" class="card">
+      <h2>10) Relevant repo files and folders</h2>
+      <ul class="repo-list">
+        <li>
+          <strong>Project overview</strong><br />
+          <a href="https://github.com/jdavid459/spend-sense/blob/main/README.md" target="_blank" rel="noreferrer">README.md</a>
+          — quick start and high-level summary.
+        </li>
+        <li>
+          <strong>Build history / architectural decisions</strong><br />
+          <a href="https://github.com/jdavid459/spend-sense/blob/main/build_notes.md" target="_blank" rel="noreferrer">build_notes.md</a>
+        </li>
+        <li>
+          <strong>Configuration</strong><br />
+          <a href="https://github.com/jdavid459/spend-sense/blob/main/.env.example" target="_blank" rel="noreferrer">.env.example</a>,
+          <a href="https://github.com/jdavid459/spend-sense/blob/main/src/config.py" target="_blank" rel="noreferrer">src/config.py</a>
+        </li>
+        <li>
+          <strong>Python ingestion + demo generation</strong><br />
+          <a href="https://github.com/jdavid459/spend-sense/tree/main/scripts" target="_blank" rel="noreferrer">scripts/</a>
+        </li>
+        <li>
+          <strong>dbt models</strong><br />
+          <a href="https://github.com/jdavid459/spend-sense/tree/main/dbt/models/staging" target="_blank" rel="noreferrer">dbt/models/staging/</a>,
+          <a href="https://github.com/jdavid459/spend-sense/tree/main/dbt/models/intermediate" target="_blank" rel="noreferrer">dbt/models/intermediate/</a>,
+          <a href="https://github.com/jdavid459/spend-sense/tree/main/dbt/models/marts" target="_blank" rel="noreferrer">dbt/models/marts/</a>
+        </li>
+        <li>
+          <strong>Seeded merchant rules</strong><br />
+          <a href="https://github.com/jdavid459/spend-sense/blob/main/dbt/seeds/merchant_rules.csv" target="_blank" rel="noreferrer">dbt/seeds/merchant_rules.csv</a>
+        </li>
+        <li>
+          <strong>Dash application</strong><br />
+          <a href="https://github.com/jdavid459/spend-sense/blob/main/app/app.py" target="_blank" rel="noreferrer">app/app.py</a>,
+          <a href="https://github.com/jdavid459/spend-sense/tree/main/app/components" target="_blank" rel="noreferrer">app/components/</a>
+        </li>
+        <li>
+          <strong>AI / Cohere logic</strong><br />
+          <a href="https://github.com/jdavid459/spend-sense/tree/main/src" target="_blank" rel="noreferrer">src/</a>
+          — especially <code>cohere_client.py</code>, <code>semantic_search.py</code>, <code>merchant_profiles.py</code>, <code>ai_summary.py</code>, and <code>ai_cache.py</code>.
+        </li>
+        <li>
+          <strong>Demo data</strong><br />
+          <a href="https://github.com/jdavid459/spend-sense/tree/main/data/demo" target="_blank" rel="noreferrer">data/demo/</a>
+        </li>
+      </ul>
+    </section>
+
+    <p class="footer-note">
+      Created as a readable system guide for SpendSense. File: <code>docs/spendsense_system_breakdown.html</code>
+    </p>
+  </div>
+</body>
+</html>
