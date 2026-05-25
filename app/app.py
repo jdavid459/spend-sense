@@ -14,8 +14,10 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 try:
     from components.ai_summary import register_ai_summary_callbacks, render_ai_summary_tab
+    from components.semantic_search import register_transaction_search_callbacks, render_transactions_tab
 except ImportError:
     from app.components.ai_summary import register_ai_summary_callbacks, render_ai_summary_tab
+    from app.components.semantic_search import register_transaction_search_callbacks, render_transactions_tab
 
 from src.ai_summary import filter_daily_metrics
 from src.config import DATA_MODE
@@ -270,6 +272,14 @@ register_ai_summary_callbacks(
     filter_transactions=filter_transactions,
     empty_state=empty_state,
     markdown_summary_card=markdown_summary_card,
+)
+register_transaction_search_callbacks(
+    app,
+    filter_transactions=filter_transactions,
+    empty_state=empty_state,
+    metric_card=metric_card,
+    table_from_df=table_from_df,
+    muted=MUTED,
 )
 
 app.layout = html.Div(
@@ -554,21 +564,11 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
         )
 
     if tab == "transactions":
-        cols = [
-            "transaction_date",
-            "normalized_merchant",
-            "merchant_group",
-            "merchant_source",
-            "category_source",
-            "final_category",
-            "raw_category",
-            "amount",
-            "transaction_type",
-            "is_recurring",
-            "is_anomaly",
-            "raw_description",
-        ]
-        return dbc.Card(dbc.CardBody(table_from_df(df, cols, 20)), style=CARD_STYLE)
+        return render_transactions_tab(
+            df,
+            muted=MUTED,
+            card_style=CARD_STYLE,
+        )
 
     if tab == "anomalies":
         flagged = df[df["is_anomaly"]].copy().sort_values(["zscore_vs_merchant", "zscore_vs_category"], ascending=False)

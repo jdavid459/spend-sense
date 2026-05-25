@@ -24,6 +24,43 @@ create table if not exists ai.spend_summary_cache (
     response_text varchar,
     created_at timestamp
 );
+
+create table if not exists ai.transaction_embedding_cache (
+    transaction_id varchar,
+    embedding_model varchar,
+    search_text varchar,
+    embedding_json varchar,
+    created_at timestamp,
+    primary key (transaction_id, embedding_model)
+);
+
+create table if not exists ai.search_query_cache (
+    query_key varchar primary key,
+    query_text varchar,
+    embedding_model varchar,
+    embedding_json varchar,
+    created_at timestamp
+);
+
+create table if not exists ai.search_rerank_cache (
+    rerank_key varchar primary key,
+    model varchar,
+    query_text varchar,
+    documents_json varchar,
+    results_json varchar,
+    created_at timestamp
+);
+
+create table if not exists ai.merchant_profile_cache (
+    normalized_merchant varchar primary key,
+    merchant_group varchar,
+    final_category varchar,
+    merchant_summary varchar,
+    semantic_tags_json varchar,
+    reasoning varchar,
+    model varchar,
+    created_at timestamp
+);
 """
 
 

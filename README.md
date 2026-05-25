@@ -46,3 +46,4 @@ The dbt layer includes reusable marts for transactions, recurring spend, anomali
 - AI/data-quality coverage by merchant/category source
 
 The Dash app includes a Metrics tab that surfaces these definitions and denominator choices.
+It also includes a Cohere-powered semantic search flow with embeddings + rerank, cached locally in DuckDB.
