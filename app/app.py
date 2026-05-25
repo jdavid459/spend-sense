@@ -25,7 +25,7 @@ CARD_STYLE = {
     "boxShadow": "0 12px 30px rgba(15, 23, 42, 0.08)",
 }
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
 server = app.server
 
 
@@ -48,7 +48,19 @@ def pct(value: float | int | None) -> str:
     return f"{value:.1%}"
 
 
-def load_data() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_data() -> tuple[
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+]:
     txns = safe_query("select * from marts.fct_transactions order by transaction_date desc")
     monthly_spend = safe_query("select * from marts.mart_monthly_spend order by month")
     flagged = safe_query("select * from marts.mart_anomalies order by severity_score desc")
@@ -56,16 +68,60 @@ def load_data() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
     merchant_review_data = safe_query(
         "select * from marts.mart_merchant_review order by needs_review desc, review_priority_score desc"
     )
+    spend_kpis = safe_query("select * from marts.mart_spend_kpis")
+    monthly_kpis = safe_query("select * from marts.mart_monthly_kpis order by month")
+    category_metrics = safe_query("select * from marts.mart_category_metrics order by total_spend desc")
+    data_quality = safe_query("select * from marts.mart_data_quality order by total_spend desc")
+    metric_summary = safe_query("select * from marts.mart_metric_summary order by metric_group, metric_label")
+    daily_metrics = safe_query(
+        "select * from marts.mart_daily_metric_values order by metric_date, metric_group, metric_name"
+    )
 
-    for df in [txns, monthly_spend, flagged, recurring_spend, merchant_review_data]:
+    for df in [
+        txns,
+        monthly_spend,
+        flagged,
+        recurring_spend,
+        merchant_review_data,
+        spend_kpis,
+        monthly_kpis,
+        category_metrics,
+        data_quality,
+        metric_summary,
+        daily_metrics,
+    ]:
         for col in df.columns:
             if "date" in col or col in {"month", "first_seen", "last_seen"}:
                 df[col] = pd.to_datetime(df[col], errors="coerce")
 
-    return txns, monthly_spend, flagged, recurring_spend, merchant_review_data
+    return (
+        txns,
+        monthly_spend,
+        flagged,
+        recurring_spend,
+        merchant_review_data,
+        spend_kpis,
+        monthly_kpis,
+        category_metrics,
+        data_quality,
+        metric_summary,
+        daily_metrics,
+    )
 
 
-transactions, monthly, anomalies, recurring, merchant_review = load_data()
+(
+    transactions,
+    monthly,
+    anomalies,
+    recurring,
+    merchant_review,
+    spend_kpis,
+    monthly_kpis,
+    category_metrics,
+    data_quality,
+    metric_summary,
+    daily_metrics,
+) = load_data()
 
 
 def filter_transactions(
@@ -130,9 +186,13 @@ def table_from_df(df: pd.DataFrame, columns: list[str], page_size: int = 15) -> 
     for col in table_df.columns:
         if pd.api.types.is_datetime64_any_dtype(table_df[col]):
             table_df[col] = table_df[col].dt.strftime("%Y-%m-%d")
-    for col in ["amount", "amount_abs", "estimated_monthly_cost", "severity_score"]:
-        if col in table_df.columns:
-            table_df[col] = table_df[col].round(2)
+    for col in table_df.columns:
+        if "share" in col or "rate" in col or "pct" in col:
+            if pd.api.types.is_numeric_dtype(table_df[col]):
+                table_df[col] = table_df[col].map(lambda value: pct(value))
+        elif any(token in col for token in ["amount", "spend", "cost", "score", "stddev", "volatility"]):
+            if pd.api.types.is_numeric_dtype(table_df[col]):
+                table_df[col] = table_df[col].round(2)
 
     return dash_table.DataTable(
         data=table_df.to_dict("records"),
@@ -176,6 +236,10 @@ category_options = [
 merchant_options = [
     {"label": merchant, "value": merchant}
     for merchant in sorted(transactions.get("normalized_merchant", pd.Series(dtype=str)).dropna().unique())
+]
+metric_group_options = [
+    {"label": group, "value": group}
+    for group in sorted(daily_metrics.get("metric_group", pd.Series(dtype=str)).dropna().unique())
 ]
 
 app.layout = html.Div(
@@ -289,6 +353,7 @@ app.layout = html.Div(
                         dcc.Tab(label="Transactions", value="transactions"),
                         dcc.Tab(label="Anomalies", value="anomalies"),
                         dcc.Tab(label="Recurring", value="recurring"),
+                        dcc.Tab(label="Metrics", value="metrics"),
                         dcc.Tab(label="Merchant Cleanup", value="merchants"),
                         dcc.Tab(label="AI Summary", value="ai"),
                     ],
@@ -542,6 +607,39 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
             className="g-3",
         )
 
+    if tab == "metrics":
+        return dbc.Card(
+            dbc.CardBody(
+                [
+                    html.H4("Metrics"),
+                    html.P(
+                        "Each row is one additive metric from the dbt daily metric fact. Filters apply before "
+                        "the rolling 30-day value, prior-period delta, and trend are displayed.",
+                        style={"color": MUTED},
+                    ),
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                [
+                                    html.Label("Metric groups", className="small fw-semibold"),
+                                    dcc.Dropdown(
+                                        id="metric-group-filter",
+                                        options=metric_group_options,
+                                        multi=True,
+                                        placeholder="All metric groups",
+                                    ),
+                                ],
+                                lg=4,
+                            )
+                        ],
+                        className="g-3 mb-4",
+                    ),
+                    html.Div(id="metrics-content"),
+                ]
+            ),
+            style=CARD_STYLE,
+        )
+
     if tab == "merchants":
         if merchant_review.empty:
             return empty_state("No merchant review mart found. Run dbt to build marts.mart_merchant_review.")
@@ -697,6 +795,186 @@ def render_tab(tab, start_date, end_date, categories, merchants, view_mode):
         )
 
     return empty_state("Unknown tab.")
+
+
+@app.callback(
+    Output("metrics-content", "children"),
+    Input("date-range", "start_date"),
+    Input("date-range", "end_date"),
+    Input("category-filter", "value"),
+    Input("merchant-filter", "value"),
+    Input("view-mode", "value"),
+    Input("metric-group-filter", "value"),
+)
+def render_metrics_content(start_date, end_date, categories, merchants, view_mode, metric_groups):
+    if daily_metrics.empty:
+        return empty_state("Daily metric mart not found. Run dbt build to create marts.mart_daily_metric_values.")
+
+    metrics = daily_metrics.copy()
+    if start_date:
+        metrics = metrics[metrics["metric_date"] >= pd.to_datetime(start_date)]
+    if end_date:
+        metrics = metrics[metrics["metric_date"] <= pd.to_datetime(end_date)]
+    if categories:
+        metrics = metrics[metrics["final_category"].isin(categories)]
+    if merchants:
+        metrics = metrics[metrics["normalized_merchant"].isin(merchants)]
+    if view_mode == "debits":
+        metrics = metrics[~metrics["metric_key"].str.startswith("credit_")]
+    elif view_mode == "credits":
+        metrics = metrics[metrics["metric_key"].str.startswith("credit_")]
+    elif view_mode == "anomalies":
+        metrics = metrics[metrics["metric_key"].str.startswith("anomaly_")]
+    elif view_mode == "recurring":
+        metrics = metrics[metrics["metric_key"].str.startswith("recurring_")]
+    if metric_groups:
+        metrics = metrics[metrics["metric_group"].isin(metric_groups)]
+
+    if metrics.empty:
+        return empty_state("No metric values match the current filters.")
+
+    def format_by_unit(value, unit: str) -> str:
+        if pd.isna(value):
+            return "—"
+        if unit == "currency":
+            return money(value)
+        if unit == "percent":
+            return pct(value)
+        if unit == "count":
+            return f"{value:,.0f}"
+        return f"{value:,.2f}"
+
+    latest_metric_date = metrics["metric_date"].max()
+    metric_rollups = (
+        metrics[metrics["metric_date"] == latest_metric_date]
+        .groupby(["metric_key", "metric_name", "metric_group", "unit"], as_index=False)[
+            ["metric_value_l30d", "metric_value_prior_l30d"]
+        ]
+        .sum()
+    )
+    metric_rollups["delta_value"] = metric_rollups["metric_value_l30d"] - metric_rollups["metric_value_prior_l30d"]
+    metric_rollups["delta_pct"] = metric_rollups["delta_value"] / metric_rollups["metric_value_prior_l30d"].replace(
+        {0: pd.NA}
+    )
+
+    display_order = [
+        "total_spend",
+        "debit_transaction_count",
+        "recurring_spend",
+        "recurring_transaction_count",
+        "anomaly_spend",
+        "anomaly_transaction_count",
+        "fallback_spend",
+        "fallback_transaction_count",
+        "cohere_spend",
+        "cohere_transaction_count",
+        "seed_rule_spend",
+        "seed_rule_transaction_count",
+        "credit_amount",
+        "credit_transaction_count",
+    ]
+    metric_rollups["sort_order"] = metric_rollups["metric_key"].map({key: idx for idx, key in enumerate(display_order)})
+    metric_rollups["sort_order"] = metric_rollups["sort_order"].fillna(999)
+    metric_rollups = metric_rollups.sort_values(["sort_order", "metric_group", "metric_name"])
+
+    trend = (
+        metrics.groupby(["metric_date", "metric_key", "metric_name", "metric_group", "unit"], as_index=False)[
+            "metric_value_l30d"
+        ]
+        .sum()
+        .sort_values("metric_date")
+    )
+
+    def delta_text(row) -> str:
+        delta = row["delta_value"]
+        delta_pct = row["delta_pct"]
+        if pd.isna(delta):
+            return "No prior 30d"
+        delta_value = format_by_unit(delta, row["unit"])
+        if delta > 0:
+            delta_value = f"+{delta_value}"
+        pct_text = f" ({delta_pct:+.1%})" if not pd.isna(delta_pct) else ""
+        return f"{delta_value}{pct_text} vs prior 30d"
+
+    def delta_color(row) -> str:
+        if pd.isna(row["delta_value"]) or row["delta_value"] == 0:
+            return MUTED
+        return "#16a34a" if row["delta_value"] < 0 else "#dc2626"
+
+    metric_rows = []
+    for _, row in metric_rollups.iterrows():
+        metric_trend = trend[trend["metric_key"] == row["metric_key"]]
+        fig = px.line(
+            metric_trend,
+            x="metric_date",
+            y="metric_value_l30d",
+            labels={"metric_date": "", "metric_value_l30d": ""},
+        )
+        fig.update_traces(
+            line={"color": ACCENT, "width": 3},
+            hovertemplate="%{x|%b %-d}<br>%{y:,.2f}<extra></extra>",
+        )
+        fig.update_layout(
+            template="plotly_white",
+            height=120,
+            margin=dict(l=10, r=10, t=8, b=8),
+            showlegend=False,
+            xaxis={"showgrid": False, "title": None},
+            yaxis={"showgrid": False, "title": None, "tickprefix": "$" if row["unit"] == "currency" else ""},
+        )
+
+        metric_rows.append(
+            dbc.Card(
+                dbc.CardBody(
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                [
+                                    html.Div(
+                                        row["metric_group"],
+                                        className="text-uppercase small fw-semibold",
+                                        style={"color": MUTED},
+                                    ),
+                                    html.Div(row["metric_name"], className="fw-bold fs-4"),
+                                    html.Div("Rolling 30-day value", className="small", style={"color": MUTED}),
+                                ],
+                                lg=3,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Div(
+                                        format_by_unit(row["metric_value_l30d"], row["unit"]),
+                                        className="fw-bold lh-sm",
+                                        style={"fontSize": "42px", "color": ACCENT},
+                                    ),
+                                    html.Div(
+                                        delta_text(row),
+                                        className="small fw-semibold mt-1",
+                                        style={"color": delta_color(row)},
+                                    ),
+                                ],
+                                lg=3,
+                            ),
+                            dbc.Col(dcc.Graph(figure=fig, config={"displayModeBar": False}), lg=6),
+                        ],
+                        align="center",
+                        className="g-3",
+                    )
+                ),
+                style=CARD_STYLE,
+                className="mb-3",
+            )
+        )
+
+    return [
+        dbc.Alert(
+            f"Showing rolling 30-day values as of {latest_metric_date.strftime('%Y-%m-%d')}. "
+            "Read each row left to right: metric, current value, delta, trend.",
+            color="light",
+            className="border",
+        ),
+        html.Div(metric_rows),
+    ]
 
 
 if __name__ == "__main__":

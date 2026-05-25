@@ -31,7 +31,18 @@ Private data is gitignored.
 ```bash
 python scripts/generate_demo_data.py
 python scripts/ingest_chase_csv.py
-cd dbt && dbt deps --profiles-dir . && dbt run --profiles-dir . && dbt test --profiles-dir .
+cd dbt && dbt deps --profiles-dir . && dbt build --profiles-dir .
 cd ..
 python app/app.py
 ```
+
+## Modeled analytics
+
+The dbt layer includes reusable marts for transactions, recurring spend, anomalies, merchant cleanup, and metrics:
+
+- global spend KPIs
+- monthly KPIs with guarded month-over-month changes
+- category concentration and volatility metrics
+- AI/data-quality coverage by merchant/category source
+
+The Dash app includes a Metrics tab that surfaces these definitions and denominator choices.

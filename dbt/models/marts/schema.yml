@@ -32,3 +32,69 @@ models:
       - name: review_priority_score
         tests:
           - not_null
+  - name: mart_spend_kpis
+    description: One-row global spend KPI mart with explicit debit-spend denominators and AI coverage metrics.
+    columns:
+      - name: total_spend
+        tests:
+          - not_null
+      - name: transaction_count
+        tests:
+          - not_null
+  - name: mart_monthly_kpis
+    description: One row per month with spend, concentration, recurring, anomaly, and month-over-month metrics.
+    columns:
+      - name: month
+        tests:
+          - not_null
+          - unique
+      - name: total_spend
+        tests:
+          - not_null
+  - name: mart_category_metrics
+    description: One row per transaction category with spend share, monthly volatility, top merchant, and latest month movement.
+    columns:
+      - name: final_category
+        tests:
+          - not_null
+          - unique
+      - name: total_spend
+        tests:
+          - not_null
+  - name: mart_data_quality
+    description: AI/data quality coverage mart by merchant and category provenance source.
+    columns:
+      - name: merchant_source
+        tests:
+          - not_null
+      - name: category_source
+        tests:
+          - not_null
+  - name: mart_metric_summary
+    description: Unified metrics mart with one row per metric comparing the latest 30 days against the previous 30 days.
+    columns:
+      - name: metric_key
+        tests:
+          - not_null
+          - unique
+      - name: metric_value
+        tests:
+          - not_null
+      - name: unit
+        tests:
+          - not_null
+  - name: mart_daily_metric_values
+    description: Additive daily metric fact table with filterable dimensions and rolling 30-day values.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+      - name: metric_key
+        tests:
+          - not_null
+      - name: metric_value
+        tests:
+          - not_null
+      - name: metric_value_l30d
+        tests:
+          - not_null

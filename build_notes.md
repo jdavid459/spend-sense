@@ -989,3 +989,374 @@ Next improvements:
 - add richer pattern detection from actual edit diffs, not just tool inputs
 - add optional LLM-powered `/tutor deepdive` for a turn-level explanation and role-specific interview answer
 - add spaced repetition / concept frequency tracking
+
+## Metrics layer implementation
+
+Added the first analytics-engineering metrics layer in dbt and surfaced it in Dash.
+
+New marts:
+
+- `dbt/models/marts/mart_spend_kpis.sql`
+  - one-row global spend KPI table
+  - uses debit spend as the denominator for spend shares
+  - excludes payments/credits from spend metrics
+  - includes concentration, recurring, anomaly, and AI/provenance coverage metrics
+- `dbt/models/marts/mart_monthly_kpis.sql`
+  - one row per month
+  - includes spend, transaction count, average/median transaction amount, top category/merchant, recurring/anomaly metrics, and MoM spend changes
+  - only exposes MoM percent change when prior-month spend is at least `$50`
+- `dbt/models/marts/mart_category_metrics.sql`
+  - one row per category
+  - includes spend share, monthly average/stddev/volatility, top merchant, latest/prior month spend, and guarded latest MoM percent change
+- `dbt/models/marts/mart_data_quality.sql`
+  - provenance coverage by `merchant_source` and `category_source`
+  - measures transaction/spend share, unique raw descriptions, and unique normalized merchants
+
+Updated `dbt/models/marts/schema.yml` with docs and basic not-null/unique tests for the new marts.
+
+Updated `app/app.py`:
+
+- loads the new metric marts
+- adds a `Metrics` tab
+- shows metric cards for concentration, recurring burden, anomaly exposure, fallback coverage, Cohere coverage, and monthly volatility
+- adds a data-quality coverage chart
+- adds monthly KPI and category metric tables
+- includes explanatory denominator copy, especially that payments/credits are excluded from spend denominators
+
+Validation passed:
+
+```bash
+source .venv/bin/activate
+cd dbt && dbt build --profiles-dir .
+python -m compileall app scripts src
+ruff check .
+```
+
+## Metrics tab refactor: unified metric grain
+
+After reviewing the first metrics page, changed direction to a more standardized metric registry pattern.
+
+Added:
+
+- `dbt/models/marts/mart_metric_summary.sql`
+
+Grain:
+
+```text
+one row per metric for the latest 30-day period, with comparison to the previous 30-day period
+```
+
+Core columns:
+
+```text
+as_of_date
+current_period_start
+current_period_end
+comparison_period_start
+comparison_period_end
+metric_key
+metric_label
+metric_group
+metric_value
+comparison_value
+delta_value
+delta_pct
+unit
+favorable_direction
+definition
+```
+
+This makes heterogeneous metrics easier to display together because every metric shares the same shape:
+
+```text
+metric | current value | prior 30d value | delta vs prior 30d | definition
+```
+
+Updated the Dash `Metrics` tab to use `marts.mart_metric_summary` as the primary page source instead of separately visualizing several differently-grained marts. The page now shows standardized cards and a metric registry table.
+
+Kept the earlier supporting marts (`mart_spend_kpis`, `mart_monthly_kpis`, `mart_category_metrics`, `mart_data_quality`) because they remain useful analytical building blocks, but the user-facing Metrics tab now uses the unified metric grain.
+
+Validation passed:
+
+```bash
+cd dbt && dbt build --profiles-dir .
+python -m compileall app scripts src
+ruff check .
+```
+
+## Project modeling philosophy: dbt-first logic
+
+Established a general project rule:
+
+- Put as much business logic as possible in dbt/SQL.
+- Python should stay simple and primarily handle ingestion, API calls, and presentation callbacks.
+- Metric definitions, grains, denominators, rolling windows, and testable transformations should live in dbt for observability, documentation, lineage, and testing.
+- For non-additive metrics, dbt should expose additive numerator/denominator components where possible, and the app can compute filtered ratios from those modeled components.
+
+No major concern with this philosophy. The main caveat is that Python remains appropriate for CSV ingestion, Cohere API interaction/retries, embedding calls, and Dash interactivity. But the app should not become the source of truth for metric definitions.
+
+## Daily additive metric fact
+
+Added:
+
+```text
+dbt/models/marts/mart_daily_metric_values.sql
+```
+
+Grain:
+
+```text
+metric_date
+metric_key / metric_name / metric_group
+final_category
+normalized_merchant
+merchant_source
+category_source
+```
+
+Measures:
+
+```text
+metric_value
+metric_value_l30d
+metric_value_prior_l30d
+unit
+```
+
+This model is intentionally limited to additive metrics so it can respond cleanly to dashboard filters. It currently includes spend, transaction count, credit, anomaly, recurring, fallback, Cohere, and seed-rule coverage metrics.
+
+Implementation details:
+
+- pulls modeled transaction grain from `marts.fct_transactions`
+- unions metric events into a common shape
+- aggregates to daily metric grain
+- densifies with a date spine so rolling 30-day windows are stable
+- computes rolling 30-day and prior rolling 30-day values in SQL
+
+Updated `app/app.py` Metrics tab:
+
+- reads `marts.mart_daily_metric_values`
+- category, merchant, date, and view filters now apply to metrics
+- metric cards show rolling 30-day values and prior-30-day deltas
+- trend chart uses `metric_value_l30d`
+- table shows standardized metric rollups
+
+Validation passed:
+
+```bash
+cd dbt && dbt build --profiles-dir .
+python -m compileall app scripts src
+ruff check .
+```
+
+## Metrics tab UX refactor: one row per metric
+
+Refactored the Metrics tab layout based on screenshot review.
+
+Previous version had separate metric cards and a combined trend chart, which repeated the same metrics in multiple places and was harder to scan.
+
+New layout:
+
+```text
+metric group / metric name | large rolling-30-day value + prior-period delta | individual trend line
+```
+
+Each metric is now displayed once in a horizontal row, making it easier to read top-to-bottom and left-to-right. The page still uses `marts.mart_daily_metric_values` as the source, so date/category/merchant/view filters apply before the rolling value, delta, and trend are displayed.
+
+Validation passed:
+
+```bash
+python -m compileall app scripts src
+ruff check .
+```
+
+## Metrics group filter
+
+Added a `Metric groups` multi-select to the filter bar. It is populated from `marts.mart_daily_metric_values.metric_group` and applies to the Metrics tab only.
+
+This allows narrowing the metric list to groups such as:
+
+- Spend
+- Behavior
+- Risk
+- Data Quality
+- Credits
+
+Validation passed:
+
+```bash
+python -m compileall app scripts src
+ruff check .
+```
+
+## Metrics group filter placement fix
+
+Moved the `Metric groups` selector out of the global dashboard filter bar and into the Metrics tab section itself.
+
+Implementation details:
+
+- `render_tab` now renders the Metrics page shell with the in-section dropdown and a `metrics-content` container.
+- Added a dedicated `render_metrics_content` callback so the in-section metric group dropdown can update only the metrics list.
+- Enabled Dash `suppress_callback_exceptions=True` because the metric group dropdown is created dynamically only when the Metrics tab is rendered.
+- Global filters remain focused on transaction-level filtering; the metric group filter is now contextual to the Metrics page.
+
+Validation passed:
+
+```bash
+python -m compileall app scripts src
+ruff check .
+```
+
+## Session handoff: metrics layer stabilized
+
+Current state after metrics iteration:
+
+- App is running locally on:
+
+```text
+http://127.0.0.1:8051/
+```
+
+- Metrics work moved strongly toward a dbt-first architecture.
+- Project rule established: most business logic should live in dbt/SQL, not Python.
+- Python/Dash should stay thin and focus on presentation, callbacks, ingestion, and API calls where unavoidable.
+- dbt should own metric definitions, grains, rolling windows, denominator choices, lineage, tests, and reusable modeled outputs.
+
+### New/updated dbt metrics models
+
+Added `dbt/models/marts/mart_daily_metric_values.sql`.
+
+Grain:
+
+```text
+metric_date
+metric_key
+metric_name
+metric_group
+final_category
+normalized_merchant
+merchant_source
+category_source
+```
+
+Measures:
+
+```text
+metric_value
+metric_value_l30d
+metric_value_prior_l30d
+unit
+```
+
+Design notes:
+
+- This model intentionally focuses on additive metrics.
+- It pulls from `marts.fct_transactions`.
+- It unions transaction-derived metric events into a common shape.
+- It aggregates to daily metric grain.
+- It densifies dates with a date spine.
+- It calculates rolling 30-day and prior rolling 30-day values in SQL.
+- This lets the frontend apply filters while still relying on dbt-modeled metric fields.
+
+Current additive metrics include:
+
+```text
+total_spend
+debit_transaction_count
+credit_amount
+credit_transaction_count
+anomaly_spend
+anomaly_transaction_count
+recurring_spend
+recurring_transaction_count
+fallback_spend
+fallback_transaction_count
+cohere_spend
+cohere_transaction_count
+seed_rule_spend
+seed_rule_transaction_count
+```
+
+Supporting metrics marts still exist and may be useful for future summaries/AI grounding:
+
+```text
+mart_spend_kpis
+mart_monthly_kpis
+mart_category_metrics
+mart_data_quality
+mart_metric_summary
+```
+
+But the user-facing Metrics tab now primarily uses:
+
+```text
+marts.mart_daily_metric_values
+```
+
+### Metrics tab UX
+
+The Metrics tab was refactored into a row-based layout that the user liked:
+
+```text
+metric group / metric name | large rolling-30-day value + delta | individual trend line
+```
+
+This replaced the earlier approach of separate metric cards plus a combined chart, which repeated metrics in multiple places and was harder to scan.
+
+Current Metrics tab behavior:
+
+- Each metric appears once.
+- Rows read left-to-right and top-to-bottom.
+- Large value shows the rolling 30-day value as of the latest selected metric date.
+- Delta compares current rolling 30-day value to prior rolling 30-day value.
+- Each metric has its own small trend line using `metric_value_l30d`.
+- Date/category/merchant/view filters apply to the metrics.
+- A contextual `Metric groups` multi-select lives inside the Metrics tab, not in the global filter bar.
+- Metric groups include values such as Spend, Behavior, Risk, Data Quality, and Credits.
+
+Implementation details:
+
+- `app/app.py` now loads `marts.mart_daily_metric_values`.
+- Metrics page shell is rendered in `render_tab`.
+- A dedicated `render_metrics_content` callback handles the in-page metric group filter.
+- Dash app now uses `suppress_callback_exceptions=True` because the metric group dropdown is dynamically rendered only on the Metrics tab.
+
+### Validation completed
+
+Ran and passed:
+
+```bash
+source .venv/bin/activate
+cd dbt && dbt build --profiles-dir .
+cd ..
+python -m compileall app scripts src
+ruff check .
+```
+
+Latest dbt build status:
+
+```text
+PASS=52 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=52
+```
+
+### Notes for next session: Cohere features
+
+The next session should start building the rest of the Cohere roadmap now that the metrics layer is in a better place.
+
+Recommended next order:
+
+1. Improve AI Summary so it is grounded in dbt-modeled metrics, especially `mart_daily_metric_values` and/or supporting metric marts.
+2. Add semantic transaction search using Cohere embeddings.
+3. Cache embeddings locally in DuckDB, similar to the merchant enrichment cache pattern.
+4. Add a search UI tab or section.
+5. Add Cohere Rerank on top of semantic search results.
+6. Add natural-language spend Q&A grounded in modeled marts and retrieved transaction context.
+7. Later improve merchant enrichment batching.
+
+Cohere implementation principles to preserve:
+
+- AI outputs should be cached and auditable.
+- dbt models should expose AI provenance and coverage.
+- Deterministic seed rules should take precedence over AI where appropriate.
+- AI coverage/fallback rates should remain first-class metrics.
+- Python should handle API calls/retries/caching, but downstream business semantics should be modeled in dbt.
