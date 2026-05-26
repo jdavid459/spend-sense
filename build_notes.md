@@ -1525,3 +1525,63 @@ Made a small UX polish pass on charts after review:
   - ensured the chart reads largest-at-top to smallest-at-bottom
 
 This was intentionally kept as a separate small follow-up after the larger semantic-search implementation so the feature work and UI polish stay easy to explain independently.
+
+## Demo preview and Render deployment notes
+
+Validated the hosted-demo path end to end using demo-only data.
+
+Local demo preview setup:
+
+- built a separate demo DuckDB at `duckdb/spend_sense_demo.duckdb` so private/local data stayed untouched
+- ran the full demo pipeline against that separate DB
+- launched the Dash app locally with:
+  - `SPEND_DATA_MODE=demo`
+  - `DUCKDB_PATH=duckdb/spend_sense_demo.duckdb`
+- confirmed the app loaded successfully on a local preview URL
+
+Observed demo snapshot:
+
+- `139` demo transactions
+- `$4,554.03` debit spend
+- `3` anomalies
+- `24` recurring transactions
+
+Recommended Render setup for easiest hosting:
+
+- host as a Render Web Service from the repo root
+- leave `Root Directory` blank
+- use demo mode only in production
+- keep private CSVs, local `.env`, and local DuckDB files out of git
+
+Render build command used:
+
+```bash
+pip install -r requirements.txt && pip install gunicorn && python scripts/generate_demo_data.py && python scripts/ingest_chase_csv.py && cd dbt && dbt deps --profiles-dir . && dbt build --profiles-dir .
+```
+
+Render start command used:
+
+```bash
+gunicorn app.app:server --bind 0.0.0.0:$PORT
+```
+
+Render environment variables discussed:
+
+```text
+SPEND_DATA_MODE=demo
+COHERE_API_KEY=...
+PYTHON_VERSION=3.11.11
+```
+
+Important deployment issue encountered:
+
+- initial Render deploy failed because Render created the environment with Python `3.14`
+- `dbt` / `mashumaro` in the current stack failed under that version during build
+- the fix was to set `PYTHON_VERSION=3.11.11` in Render, clear build cache, and redeploy
+- after pinning Render to Python `3.11.11`, deployment succeeded
+
+Practical hosting guidance going forward:
+
+- local development can continue to use private mode
+- the hosted site should stay on demo mode
+- the default public URL will be the Render subdomain (`*.onrender.com`) unless a custom domain is later attached

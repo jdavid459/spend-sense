@@ -1,5 +1,10 @@
 # SpendSense
 
+**Live demo:** https://spend-sense-mcpo.onrender.com/  
+Hosted with demo data only.
+
+[![SpendSense demo dashboard](docs/images/spend-sense-demo.png)](https://spend-sense-mcpo.onrender.com/)
+
 AI-assisted spend analytics from a Chase credit card CSV.
 
 ## Stack
